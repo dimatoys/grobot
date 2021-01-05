@@ -1,0 +1,103 @@
+<html>
+	<head>
+		<link rel="stylesheet" href="/html/jquery-ui-1.12.1.custom/jquery-ui.css">
+
+		<script src="/html/jquery-3.5.1.js"></script>
+		<script src="/html/jquery-ui-1.12.1.custom/jquery-ui.js"></script>
+		<script type="text/javascript">
+
+function getSensors() {
+	$.getJSON("/readSensors", function(data) {
+		$("#left_sensor").css('background-color', data.left > 0 ? "#FF8080": "#80FF80")
+		$("#right_sensor").css('background-color', data.right > 0 ? "#FF8080": "#80FF80")
+	})
+}
+
+function scheduleSensors() {
+	setTimeout(function(){
+		if ($("#pull_sensors").val() == "STOP SENSORS") {
+			$("#left_sensor").css('background-color',"#303030")
+			$("#right_sensor").css('background-color',"#303030")
+			getSensors()
+		} else {
+			$("#left_sensor").css('background-color',"#B0B0B0")
+			$("#right_sensor").css('background-color',"#B0B0B0")
+		}
+		scheduleSensors()
+	}, 300)
+}
+
+function setServoAngle(servo, angle) {
+	$.get("/setServoAngle/" + servo + "/" + angle)
+}
+
+function getServos() {
+	$.getJSON("/getServos", function(data) {
+		table = $("#servos").html("")
+		for (servo in data) {
+			row = $("<tr/>").appendTo(table)
+			$("<td/>").text(data[servo].name)
+			          .addClass("sid")
+			          .appendTo(row)
+			field = $("<input/>").prop("type", "textfield")
+			                    .prop("size", 4)
+			                    .val(data[servo].angle)
+			                    .addClass("svalue")
+			                    .appendTo($("<td/>").appendTo(row))
+			slider = $("<div/>").appendTo($("<td/>").appendTo(row))
+			                    .css("width", "300px")
+			                    .slider({
+                                   min: 0,
+                                   max: 1000,
+                                   value: data[servo].angle,
+                                   change: function( event, ui ) {
+                                      $(this).parent().parent().find(".svalue").each(function(){
+                                          if ($(this).val() !=  ui.value) {
+                                            $(this).val(ui.value)
+                                            $(this).parent().parent().find(".sid").each(function(){
+			                                    setServoAngle($(this).text(), ui.value)
+			                                })
+                                          }
+                                      })
+                                   }
+                                 })
+		}
+	})
+}
+
+$(function() {
+	$("#pull_sensors").click(function(){
+		if ($("#pull_sensors").val() == "PULL SENSORS") {
+			$("#pull_sensors").val("STOP SENSORS")
+		} else {
+			$("#pull_sensors").val("PULL SENSORS")
+		}
+	})
+
+	$("#scan").click(function(){
+		$("#scan_image").prop("src", "/scan?" + new Date().getTime());
+	})
+
+	getServos()
+
+	scheduleSensors()
+})
+		</script>
+	</head>
+	<body>
+		<h2>G-Robot</h2>
+		<h3>Sensors</h3>
+		<table>
+			<tr>
+				<td id="left_sensor" width="70" style="text-align:center">left</td>
+				<td id="right_sensor" width="70" style="text-align:center">right</td>
+				<td><input id="pull_sensors" type="button" value="PULL SENSORS"/></td>
+			</tr>
+		</table>
+		<h3>Servos</h3>
+		<table id="servos"></table>
+		<h3>Scan</h3>
+		<input value="SCAN" type="button" id="scan">
+		<img id="scan_image">
+	</body>
+</html>
