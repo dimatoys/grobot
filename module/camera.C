@@ -4,19 +4,72 @@
 #include "stb/stb_image_write.h"
 
 #include <time.h>
+#include <librealsense2/rs.hpp>
+
+
+class TPipeline {
+	rs2::pipeline	pipeline;
+	rs2::config		cfg;
+
+	rs2::frameset frames;
+
+public:
+
+	int width;
+	int height;
+
+	TPipeline() {
+		cfg.enable_stream(RS2_STREAM_DEPTH, RS2_FORMAT_Z16);
+		pipeline.start(cfg);
+	}
+
+	~TPipeline() {
+		pipeline.stop();
+	}
+
+	void newFrame() {
+		frames = pipeline.wait_for_frames();
+		rs2::depth_frame depth = frames.get_depth_frame();
+		width = depth.get_width();
+		height = depth.get_height();
+	}
+
+	void saveDepth() {
+
+		char file_name[100];
+		sprintf(file_name,"depth%lu.csv", time(NULL));
+		FILE* f = fopen(file_name, "w");
+		for (auto y = 0; y < height; ++y) {
+			char* c = "";
+			for (auto x = 0; x < width; ++x) {
+				float d = get_distance(x, y);
+				fprintf(f, "%s%f",c,d);
+				c = ", ";
+			}
+			fputc('\n', f);
+		}
+		fclose(f);
+	}
+
+	float get_distance(int x, int y) {
+		return frames.get_depth_frame().get_distance(x,y);
+	}
+
+};
+
 
 TCamera::TCamera() {
-	cfg.enable_stream(RS2_STREAM_DEPTH, RS2_FORMAT_Z16);
-	pipeline.start(cfg);
 
 	buffer_size = 640*480;
 	buffer = new uint8_t[buffer_size];
 
 	limit = 0.6;
+
+	pipeline = new TPipeline();
 }
 
 TCamera::~TCamera() {
-	pipeline.stop();
+	delete (TPipeline*)pipeline;
 }
 
 void TCamera::resetBuffer() {
@@ -35,39 +88,24 @@ void TCamera::writeBuffer(const void* data, int size) {
 	buffer_ptr += size;
 }
 
-void TCamera::saveDump(rs2::depth_frame depth) {
-	auto width = depth.get_width();
-	auto height = depth.get_height();
+void TCamera::scan() {
+	
+	TPipeline* pl = (TPipeline*)pipeline;
+	pl->newFrame();
 
-	char file_name[100];
-	sprintf(file_name,"%lu.csv", time(NULL));
-	FILE* f = fopen(file_name, "w");
-	for (auto y = 0; y < height; ++y) {
-		char* c = "";
-		for (auto x = 0; x < width; ++x) {
-			float d = depth.get_distance(x, y);
-			fprintf(f, "%s%f",c,d);
-			c = ", ";
-		}
-		fputc('\n', f);
-	}
-	fclose(f);
+	//pl->saveDepth();
 }
 
-void TCamera::scan() {
-	rs2::frameset frames = pipeline.wait_for_frames();
-	rs2::depth_frame depth = frames.get_depth_frame();
-	width = depth.get_width();
-	height = depth.get_height();
+void TCamera::process() {
 
-	//saveDump(depth);
+	TPipeline* pl = (TPipeline*)pipeline;
 
 	max = 0;
 	min = limit;
 
-	for (auto y = 0; y < height; ++y) {
-		for (auto x = 0; x < width; ++x) {
-			float d = depth.get_distance(x, y);
+	for (auto y = 0; y < pl->height; ++y) {
+		for (auto x = 0; x < pl->width; ++x) {
+			float d = pl->get_distance(x, y);
 			if (d > 0) {
 				if (d < min) {
 					min = d;
@@ -89,11 +127,11 @@ void TCamera::scan() {
 	if (interval > 0) {
 
 		int channels = 3;
-		uint8_t* data = new uint8_t[width * height * channels];
+		uint8_t* data = new uint8_t[pl->width * pl->height * channels];
 		auto p = data;
-		for (auto y = 0; y < height; ++y) {
-			for (auto x = 0; x < width; ++x) {
-				float d = depth.get_distance(x, y);
+		for (auto y = 0; y < pl->height; ++y) {
+			for (auto x = 0; x < pl->width; ++x) {
+				float d = pl->get_distance(x, y);
 				if (d > limit) {
 					d = limit;
 				}
@@ -113,7 +151,7 @@ void TCamera::scan() {
 		stbi_write_jpg_to_func(
 			[](void *context, void *compressed, int size) {
 				((TCamera*)context)->writeBuffer(compressed, size);
-			}, this, width, height, channels, data, 90);
+			}, this, pl->width, pl->height, channels, data, 90);
 		delete data;
 	}
 }

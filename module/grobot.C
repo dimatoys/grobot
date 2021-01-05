@@ -69,7 +69,9 @@ void setServoAngle(TGRobot* grobot, int servo, int angle) {
 }
 
 void scan(TGRobot* grobot) {
-	((TCamera*)grobot->camera)->scan();
-	grobot->picture.buffer = (char*)((TCamera*)grobot->camera)->buffer;
-	grobot->picture.buffer_size = ((TCamera*)grobot->camera)->buffer_ptr;
+	TCamera* camera = (TCamera*)grobot->camera;
+	camera->scan();
+	camera->process();
+	grobot->picture.buffer = (char*)camera->buffer;
+	grobot->picture.buffer_size = camera->buffer_ptr;
 }

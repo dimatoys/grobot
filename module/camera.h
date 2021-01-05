@@ -1,19 +1,13 @@
-#include <librealsense2/rs.hpp>
+#include <cstdint>
 
 class TCamera {
-	rs2::pipeline	pipeline;
-	rs2::config		cfg;
+	void* pipeline;
 
 	void resetBuffer();
 	void writeBuffer(const void* data, int size);
 	int buffer_size;
 
-	void saveDump(rs2::depth_frame depth);
-
 public:
-	int width;
-	int height;
-
 	uint8_t* buffer;
 	int buffer_ptr;
 
@@ -25,4 +19,5 @@ public:
 	~TCamera();
 
 	void scan();
+	void process();
 };
