@@ -1,7 +1,41 @@
 #include <cstdint>
+#include <string>
+
+class TDepth {
+
+public:
+
+	int width;
+	int height;
+
+	virtual void newFrame()=0;
+	virtual float get_distance(int x, int y)=0;
+	void save();
+
+	virtual ~TDepth() {};
+
+};
+
+class TDepthFile : public TDepth {
+	std::string fileName;
+	float*  data;
+public:
+	TDepthFile(std::string fileName) {
+		this->fileName = fileName;
+		data = NULL;
+	}
+
+	~TDepthFile();
+
+	void newFrame();
+
+	float get_distance(int x, int y) {
+		return data[y * width + x];
+	}
+};
 
 class TCamera {
-	void* pipeline;
+	TDepth* depth;
 
 	void resetBuffer();
 	void writeBuffer(const void* data, int size);
@@ -15,8 +49,7 @@ public:
 	float max;
 	float limit;
 
-	TCamera();
-	~TCamera();
+	TCamera(TDepth* depth);
 
 	void scan();
 	void process();

@@ -1,10 +1,9 @@
 #include "grobot.h"
 #include "pca9685.h"
-#include "camera.h"
+#include "realsense.h"
 
 #include <stdio.h>
 #include <bcm2835.h>
-//#include <confuse.h>
 
 int PIN_LEFT_GRIPPER = 23;
 int PIN_RIGHT_GRIPPER = 24;
@@ -42,7 +41,7 @@ void init(TGRobot* grobot) {
 	bcm2835_gpio_fsel(PIN_RIGHT_GRIPPER, BCM2835_GPIO_FSEL_INPT);
 	bcm2835_gpio_set_pud(PIN_RIGHT_GRIPPER, BCM2835_GPIO_PUD_UP);
 
-	grobot->camera = new TCamera();
+	grobot->camera = new TCamera(new TRealSense());
 
 }
 
