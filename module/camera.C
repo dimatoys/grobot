@@ -1,4 +1,5 @@
 #include "camera.h"
+#include "regression.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
@@ -99,13 +100,44 @@ void TCamera::scan() {
 	//depth->save();
 }
 
+#define AREA(x,y) (x >= 92) && (x + y >= 302) && (y-x >= 130-848) && ((y <= 340) || (x<= 750 )) && ((y <= 422) || (x <= 350) || (x >= 640))
+
 void TCamera::process() {
+
+	int k = 10;
+	
+	int step = 10;
+	double x1[depth->width * depth->height / step / step];
+	double x2[depth->width * depth->height / step / step];
+	double y1[depth->width * depth->height / step / step];
+
+	int n = 0;
+	for (int y = 0; y < depth->height; y += step) {
+		for (int x = 0; x < depth->width; x += step) {
+			if (AREA(x,y)) {
+				auto d = depth->get_distance(x, y);
+				if (d > 0) {
+					x1[n] = x - depth->width / 2;
+					x2[n] = y - depth->height / 2;
+					y1[n++] = d;
+				}
+			}
+		}
+	}
+
+	double pr[k];
+	GeneratePR(n, x1, x2, k, y1, pr);
+
+	for (int i = 0; i < k; ++i) {
+		printf("%d: %20.15f\n", i, pr[i]);
+	}
+
 
 	max = 0;
 	min = limit;
 
-	for (auto y = 0; y < depth->height; ++y) {
-		for (auto x = 0; x < depth->width; ++x) {
+	for (int y = 0; y < depth->height; ++y) {
+		for (int x = 0; x < depth->width; ++x) {
 			float d = depth->get_distance(x, y);
 			if (d > 0) {
 				if (d < min) {
@@ -136,16 +168,27 @@ void TCamera::process() {
 				if (d > limit) {
 					d = limit;
 				}
-				if ((d == 0) || ((d >= 0.26) && (d < 0.57))) {
+					/*
 					uint8_t color = d > 0 ? (uint8_t)(255 * (d - min) / interval) : 0;
 					*p++ = color;
 					*p++ = color;
 					*p++ = color;
-				} else {
-					*p++ = 100;
-					*p++ = 100;
-					*p++ = 255;
-				}
+					*/
+					if (d > 0) {
+						if (fabs(d - Predict(x - depth->width / 2, y - depth->height / 2, k, pr)) < 0.006) {
+							*p++ = 100;
+							*p++ = 255;
+							*p++ = 100;
+						} else {
+							*p++ = 255;
+							*p++ = 100;
+							*p++ = 100;
+						}
+					} else {
+						*p++ = 0;
+						*p++ = 0;
+						*p++ = 0;
+					}
 			}
 		}
 

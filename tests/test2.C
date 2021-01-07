@@ -1,9 +1,31 @@
 #include "realsense.h"
+#include "regression.h"
 
 #include <stdio.h>
 
+void PRtest() {
+
+	int n = 3;
+	double x1[] = {0, 0, 1};
+	double x2[] = {0, 1, 0};
+	int k = 3;
+	double y[]  = {0, 0, 1};
+	
+	double pr[k];
+
+	GeneratePR(n, x1, x2, k, y, pr);
+
+	for (int i = 0; i < k; ++i) {
+		printf("%f\n", pr[i]);
+	}
+}
+
+
 int main(int argc, char **argv)
 {
+
+	//PRtest();
+
 	//TRealSense src;
 	TDepthFile src("1609729260.csv");
 	
