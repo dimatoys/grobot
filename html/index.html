@@ -74,6 +74,10 @@ $(function() {
 		}
 	})
 
+	$("#depth").click(function(){
+		$("#scan_image").prop("src", "/depth?" + new Date().getTime());
+	})
+
 	$("#scan").click(function(){
 		$("#scan_image").prop("src", "/scan?" + new Date().getTime());
 	})
@@ -97,6 +101,7 @@ $(function() {
 		<h3>Servos</h3>
 		<table id="servos"></table>
 		<h3>Scan</h3>
+		<input value="DEPTH" type="button" id="depth">
 		<input value="SCAN" type="button" id="scan">
 		<img id="scan_image">
 	</body>

@@ -64,6 +64,10 @@ class TGRobot(Structure):
 
 		g_GRobotModule.setServoAngle(byref(self), servo, int(angle))
 
+	def showDepth(self):
+		g_GRobotModule.depth(byref(self))
+		return self.picture.getJPG()
+
 	def scan(self):
 		g_GRobotModule.scan(byref(self))
 		return self.picture.getJPG()
@@ -79,6 +83,7 @@ def init():
 	g_GRobotModule.readSensors.restype = c_int
 	g_GRobotModule.setServoValue.argtypes = [POINTER(TGRobot), c_int, c_int]
 	g_GRobotModule.setServoAngle.argtypes = [POINTER(TGRobot), c_int, c_int]
+	g_GRobotModule.depth.argtypes = [POINTER(TGRobot)]
 	g_GRobotModule.scan.argtypes = [POINTER(TGRobot)]
 
 	for servo in range(len(g_Servos)):

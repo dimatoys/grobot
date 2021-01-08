@@ -30,6 +30,7 @@ void cloase(TGRobot* grobot);
 unsigned int readSensors(TGRobot* grobot);
 void setServoValue(TGRobot* grobot, int servo, int value);
 void setServoAngle(TGRobot* grobot, int servo, int angle);
+void depth(TGRobot* grobot);
 void scan(TGRobot* grobot);
 
 }

@@ -31,6 +31,11 @@ def setServoAngle(servo, angle):
 	robot.setServoAngle(servo, angle)
 	return "OK"
 
+@app.route('/depth')
+def depth():
+	jpg = robot.showDepth()
+	return send_file(io.BytesIO(jpg),mimetype='image/jpeg')
+
 @app.route('/scan')
 def scan():
 	jpg = robot.scan()

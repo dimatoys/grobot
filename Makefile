@@ -16,4 +16,4 @@ test2: tests/test2.o module/camera.o module/regression.o
 	g++ -o $@ $^ $(BUILD_FLAGS)
 
 clean:
-	rm test1 */*.o *.so
+	rm test2 */*.o *.so

@@ -26,14 +26,17 @@ int main(int argc, char **argv)
 
 	//PRtest();
 
-	//TRealSense src;
-	TDepthFile src("1609729260.csv");
+	TRealSense src;
+	//TDepthFile src("1609729260.csv");
 	
 	TCamera camera(&src);
 	camera.scan();
+	//camera.showDepth();
+	//camera.calibrate();
 	camera.process();
 
-	printf("min=%f max=%f\n", camera.min, camera.max);
+	printf("max=%f\n", camera.max);
+	
 	FILE *f = fopen("scan.jpg", "wb");
 	fwrite(camera.buffer, camera.buffer_ptr, 1, f);
 	fclose(f);

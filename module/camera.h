@@ -49,8 +49,14 @@ public:
 	float max;
 	float limit;
 
+	int     reg_k;
+	double* reg_pr;
+	double* reg_surface;
+
 	TCamera(TDepth* depth);
 
 	void scan();
+	void showDepth();
+	void calibrate();
 	void process();
 };

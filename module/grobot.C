@@ -67,6 +67,14 @@ void setServoAngle(TGRobot* grobot, int servo, int angle) {
 	setServoValue(grobot, servo, (rservo->hardware_max - rservo->hardware_min) * angle / 1000 + rservo->hardware_min);
 }
 
+void depth(TGRobot* grobot) {
+	TCamera* camera = (TCamera*)grobot->camera;
+	camera->scan();
+	camera->showDepth();
+	grobot->picture.buffer = (char*)camera->buffer;
+	grobot->picture.buffer_size = camera->buffer_ptr;
+}
+
 void scan(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
 	camera->scan();
