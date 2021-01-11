@@ -1,4 +1,4 @@
-BUILD_FLAGS = -lbcm2835 -Llib/librealsense2 -lrealsense2
+BUILD_FLAGS = -lbcm2835 -Llib/librealsense2 -lrealsense2 -lrt
 
 all:: libgrobot.so
 

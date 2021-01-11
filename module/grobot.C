@@ -70,7 +70,10 @@ void setServoAngle(TGRobot* grobot, int servo, int angle) {
 void depth(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
 	camera->scan();
-	camera->showDepth();
+	uint8_t* data = new uint8_t[camera->depth->width * camera->depth->height * 3];
+	camera->drawDepth(data);
+	camera->saveJpg(data);
+	delete data;
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;
 }
@@ -78,7 +81,11 @@ void depth(TGRobot* grobot) {
 void scan(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
 	camera->scan();
-	camera->process();
+	uint8_t* data = new uint8_t[camera->depth->width * camera->depth->height * 3];
+	camera->drawDepth(data);
+	camera->process(data);
+	camera->saveJpg(data);
+	delete data;
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;
 }

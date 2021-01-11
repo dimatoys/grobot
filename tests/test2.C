@@ -20,7 +20,6 @@ void PRtest() {
 	}
 }
 
-
 int main(int argc, char **argv)
 {
 
@@ -33,11 +32,18 @@ int main(int argc, char **argv)
 	camera.scan();
 	//camera.showDepth();
 	//camera.calibrate();
-	camera.process();
+	uint8_t* data = new uint8_t[src.width * src.height * 3];
+	camera.drawDepth(data);
+	camera.process(data);
 
-	printf("max=%f\n", camera.max);
-	
+	camera.saveJpg(data);
+	delete data;
+
+	camera.time_stat();
+	printf("max=%d size=%d buffer=%d\n", camera.max, camera.buffer_ptr, camera.buffer_size);
+
 	FILE *f = fopen("scan.jpg", "wb");
 	fwrite(camera.buffer, camera.buffer_ptr, 1, f);
 	fclose(f);
+
 }
