@@ -21,6 +21,7 @@ class TPicture(Structure):
 class TGRobot(Structure):
 	_fields_ = [("pca9685", c_void_p),
 	           ("camera", c_void_p),
+	           ("lowMode", c_int),
 	           ("numServos", c_int),
 	           ("servos", TServo * 16),
 	           ("picture", TPicture)]
@@ -63,6 +64,11 @@ class TGRobot(Structure):
 			servo = int(servo)
 
 		g_GRobotModule.setServoAngle(byref(self), servo, int(angle))
+
+	def setLowMode(self, value):
+		self.lowMode = int(value)
+		if self.lowMode > 0:
+			self.setServoAngle("A", self.servos[g_ServoMap["A"]].angle)
 
 	def showDepth(self):
 		g_GRobotModule.depth(byref(self))

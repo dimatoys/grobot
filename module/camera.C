@@ -369,12 +369,14 @@ void TCamera::process(uint8_t* data) {
 
 							if (slice->obj_id == -1) {
 								slice->obj_id = objs.size();
+								//printf("new obj=%d x=%d y=[%d..%d]\n", slice->obj_id, x, last_h, start_y);
 								objs.push_back(new TObject(x, last_h, start_y));
 								//for (auto a = last_h; a <= start_y; ++a) {
 								//	data[(x + a * depth->width) * 3] = 255;
 								//}
 							} else {
 								objs[slice->obj_id]->add(x, last_h, start_y);
+								//printf("add obj=%d x=%d y=[%d..%d]\n", slice->obj_id, x, last_h, start_y);
 								//for (int a = 0; a < step; ++a) {
 								//	data[(x + a + slice->from_y * depth->width) * 3] = 255;
 								//	data[(x + a + slice->to_y * depth->width) * 3] = 255;
@@ -407,10 +409,11 @@ void TCamera::process(uint8_t* data) {
 		delete *i;
 	}
 
-	for(int i = 0; i < objs.size(); ++i) {
+	for(int i = objs.size() - 1; i >= 0 ; --i) {
 		TObject* obj = objs[i];
-		for (std::list<int>::const_iterator i = obj->refs.cbegin(); i != obj->refs.cend(); ++i) {
-			TObject* ref_obj = objs[*i];
+		for (std::list<int>::const_iterator ri = obj->refs.cbegin(); ri != obj->refs.cend(); ++ri) {
+			TObject* ref_obj = objs[*ri];
+			//printf("check ref=%d: x[%d..%d]-y[%d..%d]\n", *ri, ref_obj->min_x, ref_obj->max_x, ref_obj->min_y, ref_obj->max_y);
 			if (ref_obj->min_x < obj->min_x) {
 				obj->min_x = ref_obj->min_x;
 			}
@@ -424,7 +427,8 @@ void TCamera::process(uint8_t* data) {
 				obj->max_y = ref_obj->max_y;
 			}
 		}
-		//printf("x[%d..%d]-y[%d..%d] %d %s\n", obj->min_x, obj->max_x, obj->min_y, obj->max_y, (int)obj->refs.size(), obj->has_ref ? "CHILD" : "ROOT");
+		//printf("%d: x[%d..%d]-y[%d..%d] %d %s\n", i, obj->min_x, obj->max_x, obj->min_y, obj->max_y, (int)obj->refs.size(), obj->has_ref ? "CHILD" : "ROOT");
+
 		if (!obj->has_ref) {
 			for (int x = obj->min_x; x <= obj->max_x; ++x) {
 				data[(x + obj->min_y * depth->width) * 3 + 2] = 255;
@@ -435,8 +439,10 @@ void TCamera::process(uint8_t* data) {
 				data[(obj->max_x + y * depth->width) * 3 + 2] = 255;
 			}
 		}
+
 		delete obj;
 	}
+
 	clock_gettime(CLOCK_REALTIME, &processed);
 }
 

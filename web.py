@@ -29,7 +29,12 @@ def setServoValue(servo, value):
 @app.route('/setServoAngle/<servo>/<angle>')
 def setServoAngle(servo, angle):
 	robot.setServoAngle(servo, angle)
-	return "OK"
+	return json.dumps(robot.getServos())
+
+@app.route('/setLowMode/<value>')
+def setLowMode(value):
+	robot.setLowMode(value)
+	return json.dumps(robot.getServos())
 
 @app.route('/depth')
 def depth():

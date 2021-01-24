@@ -27,13 +27,14 @@ int main(int argc, char **argv)
 
 	TRealSense src;
 	//TDepthFile src("1609729260.csv");
-	
+
 	TCamera camera(&src);
 	camera.scan();
 	//camera.showDepth();
 	//camera.calibrate();
 	uint8_t* data = new uint8_t[src.width * src.height * 3];
 	camera.drawDepth(data);
+
 	camera.process(data);
 
 	camera.saveJpg(data);

@@ -27,8 +27,22 @@ function scheduleSensors() {
 	}, 300)
 }
 
+function updateServoAngles(data) {
+	table = $("#servos")
+	for (servo in data) {
+		table.find(".sid").each(function(){
+			if ($(this).text() == data[servo].name) {
+				$(this).parent().find(".svalue").each(function(){
+					$(this).val(data[servo].angle)
+				})
+			}
+		})
+	}
+}
+
+
 function setServoAngle(servo, angle) {
-	$.get("/setServoAngle/" + servo + "/" + angle)
+	$.getJSON("/setServoAngle/" + servo + "/" + angle, updateServoAngles)
 }
 
 function getServos() {
@@ -44,6 +58,14 @@ function getServos() {
 			                    .val(data[servo].angle)
 			                    .addClass("svalue")
 			                    .appendTo($("<td/>").appendTo(row))
+			                    .onEnter(function(){
+									value = $(this).val()
+									$(this).val("sending...")
+									$(this).parent().parent().find("div").each(function(){
+										$(this).slider('value',value);
+									})
+									
+								})
 			slider = $("<div/>").appendTo($("<td/>").appendTo(row))
 			                    .css("width", "300px")
 			                    .slider({
@@ -65,6 +87,15 @@ function getServos() {
 	})
 }
 
+(function($) {
+    $.fn.onEnter = function(func) {
+        this.bind('keypress', function(e) {
+            if (e.keyCode == 13) func.apply(this, [e]);    
+        });               
+        return this; 
+     };
+})(jQuery);
+
 $(function() {
 	$("#pull_sensors").click(function(){
 		if ($("#pull_sensors").val() == "PULL SENSORS") {
@@ -80,6 +111,15 @@ $(function() {
 
 	$("#scan").click(function(){
 		$("#scan_image").prop("src", "/scan?" + new Date().getTime());
+	})
+
+	$("#scan_image").mousemove(function(event){
+		imgpos = $("#scan_image").position()
+		$("#coordinates").text("( " + (event.pageX - imgpos.left) + ", " + (event.pageY - imgpos.top) + " )")
+	})
+
+	$("#lowMode").change(function(){
+		$.getJSON("/setLowMode/" + ($(this).is(':checked') ? "1" : "0"),updateServoAngles)
 	})
 
 	getServos()
@@ -99,10 +139,13 @@ $(function() {
 			</tr>
 		</table>
 		<h3>Servos</h3>
+		<input id="lowMode" type="checkbox">Low mode
 		<table id="servos"></table>
 		<h3>Scan</h3>
 		<input value="DEPTH" type="button" id="depth">
 		<input value="SCAN" type="button" id="scan">
+		<span id="coordinates"></span>
+		<br>
 		<img id="scan_image">
 	</body>
 </html>

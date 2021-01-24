@@ -20,6 +20,7 @@ struct TPicture {
 struct TGRobot {
 	void*	pca9685;
 	void*	camera;
+	int		lowMode;
 	int		numServos;
 	TServo	servos[16];
 	TPicture picture;

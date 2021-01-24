@@ -14,6 +14,8 @@ void init(TGRobot* grobot) {
 		printf("Error init bcm2835\n");
         return;
     }
+    
+    grobot->lowMode = 0;
 
 	grobot->numServos = 4;
 	grobot->servos[SERVO_L].angle = 0;
@@ -64,7 +66,14 @@ void setServoValue(TGRobot* grobot, int servo, int value) {
 void setServoAngle(TGRobot* grobot, int servo, int angle) {
 	TServo* rservo = &grobot->servos[servo];
 	rservo->angle = angle;
-	setServoValue(grobot, servo, (rservo->hardware_max - rservo->hardware_min) * angle / 1000 + rservo->hardware_min);
+	int value = (rservo->hardware_max - rservo->hardware_min) * angle / 1000 + rservo->hardware_min;
+	setServoValue(grobot, servo, value);
+
+	if ((servo == SERVO_A) && (grobot->lowMode > 0)) {
+		int angleL = 0.0001 * angle * angle - 0.17 * angle + 1000;
+		printf("LOW MODE: A=%d L=%d\n", angle, angleL);
+		setServoAngle(grobot, SERVO_L, angleL);
+	}
 }
 
 void depth(TGRobot* grobot) {
