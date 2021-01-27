@@ -153,3 +153,158 @@ double Predict(double x1, double x2, int k, double* pr) {
 	}
 	return v;
 }
+
+typedef double (*FT)(double*);
+
+double f0(double* args) {
+	return 1;
+}
+
+double f1_1(double* args) {
+	return *args;
+}
+
+double f1_2(double* args) {
+	auto x = *args;
+	return x * x;
+}
+
+double f1_3(double* args) {
+	auto x = *args;
+	return x * x * x;
+}
+
+double f1_4(double* args) {
+	auto x = *args;
+	auto x2 = x * x;
+	return x2 * x2;
+}
+
+double f2_1(double* args) {
+	auto y = *(args + 1);
+	return y;
+}
+
+double f2_3(double* args) {
+	auto y = *(args + 1);
+	return y * y;
+}
+
+double f2_4(double* args) {
+	return *args * *(args + 1);
+}
+
+double f2_6(double* args) {
+	auto y = *(args + 1);
+	return y * y * y;
+}
+
+double f2_7(double* args) {
+	auto x = *args;
+	auto y = *(args + 1);
+	return y * y * x;
+}
+
+double f2_8(double* args) {
+	auto x = *args;
+	auto y = *(args + 1);
+	return y * x * x;
+}
+
+double f2_10(double* args) {
+	auto y = *(args + 1);
+	auto y2 = y * y;
+	return y2 * y2;
+}
+
+double f2_11(double* args) {
+	auto x = *args;
+	auto y = *(args + 1);
+	return y * y * y * x;
+}
+
+double f2_12(double* args) {
+	auto x = *args;
+	auto y = *(args + 1);
+	return y * y * x * x;
+}
+
+double f2_13(double* args) {
+	auto x = *args;
+	auto y = *(args + 1);
+	return y * x * x * x;
+}
+
+const static FT pf[][15] = {{f0, f1_1, f1_2, f1_3, f1_4},
+                            {f0, f2_1, f1_1, f2_3, f2_4, f1_2, f2_6, f2_7, f2_8, f1_3, f2_10, f2_11, f2_12, f2_13, f1_4}};
+
+void GeneratePR(int     n,    // num of samples
+                double* x,    // x1[0],x2[0],...,x_xn[0], x1[1],x2[1],...,x_xn[1], ... x_xn[n-1]
+                int     xn,   // number of x
+                int     k,    // regression level
+                double* y,    // y1[0],y2[0],...,y_yn[0], y1[1],y2[1],...,y_yn[1], ... y_yn[n-1]
+                int     yn,   // number of y
+                double* pr) { // PR[k*yn]  k[1] 1..5 k[2] 1,3,6,10,15
+
+	const FT* p = pf[xn - 1];
+
+	double* m1 = new double[k * k];
+	double* pm1 = m1;
+
+	for (int i = 0; i < k; ++i) {
+		for (int j = 0; j < k; ++j) {
+			double v = 0;
+			for (int a = 0; a < n; ++a) {
+				v += p[i](x + a * xn) * p[j](x + a * xn);
+				//printf("%f(%d,%d) * %f(%d,%d) <- %f[%d]\n", p[i](x + a * xn), i,a,p[j](x + a * xn),j,a,*(x + a * xn), a*xn);
+			}
+			*pm1++ = v;
+			//printf("-> %f [%d,%d]\n", v, j,i);
+		}
+	}
+
+
+	double* m2 = new double[k * k];
+	ReverseMatrix(k, m1, m2);
+	delete m1;
+
+	for (int i = 0; i < k; ++i) {
+		for (int j = 0; j < yn; ++j) {
+			pr[j] = 0;
+		}
+		for (int j = 0; j < n; ++j) {
+			double w = 0;
+			for (int a = 0; a < k; ++a) {
+				w += m2[a + k * i] * p[a](x + j * xn);
+				//printf(" + %f * %f", m2[a + k * i], p[a](x + j * xn));
+			}
+			//printf("-> %f\n", w);
+			for(int t = 0; t < yn; ++t) {
+				//auto old = pr[t];
+				pr[t] += w * y[j * yn + t];
+				//printf("pr[%d] = %f + %f * %f -> %f\n", i*yn+t, old, w, y[j * yn + t], pr[t]);
+			}
+		}
+		pr += yn;
+	}
+	delete m2;
+
+}
+
+void Predict(double* x, int xn, double* pr, int k, double* y, int yn) {
+
+	const FT* p = pf[xn - 1];
+
+	for (int i = 0; i < yn; ++i) {
+		y[i] = 0;
+	}
+
+	for (int i = 0; i < k; ++i) {
+		auto r = p[i](x);
+		for (int j =0; j < yn; ++j) {
+			//printf(" + %f * %f", *pr, r);
+			y[j] += *pr++ * r;
+		}
+	}
+	//printf("\n");
+}
