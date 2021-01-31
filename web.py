@@ -41,6 +41,11 @@ def depth():
 	jpg = robot.showDepth()
 	return send_file(io.BytesIO(jpg),mimetype='image/jpeg')
 
+@app.route('/calibrate')
+def calibrate():
+	jpg = robot.calibrate()
+	return send_file(io.BytesIO(jpg),mimetype='image/jpeg')
+
 @app.route('/scan')
 def scan():
 	jpg = robot.scan()

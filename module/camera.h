@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <string>
-#include <time.h>
 
 class TDepth {
 
@@ -48,7 +47,10 @@ class TCamera {
 public:
 	int buffer_size;
 
-	TDepth* depth;
+	uint8_t* data;
+	int width;
+	int height;
+	int components;
 
 	uint8_t* buffer;
 	int buffer_ptr;
@@ -61,22 +63,18 @@ public:
 	double*   reg_pr;
 	int16_t* reg_surface;
 
-	TCamera(TDepth* depth);
+	TCamera();
+	~TCamera();
 
-	void scan();
+	void allocate(int newWidth, int newHeight, int newComponents);
+	void set(int x, int y, uint8_t* color);
 
-	void calibrate();
-	
-	void drawDepth(uint8_t* data);
-	void process(uint8_t* data);
-	void saveJpg(uint8_t* data);
+	void saveJpg();
+	void drawDepth(TDepth* depth);
 
-	struct timespec start_scan;
-	struct timespec image_ready;
-	struct timespec drawn;
-	struct timespec init;
-	struct timespec processed;
-	struct timespec saved;
+	void calibrate(TDepth* depth);
+	void calibrate2(TDepth* depth);
 
-	void time_stat();
+	void processInit(TDepth* depth);
+	void process(TDepth* depth);
 };

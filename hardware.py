@@ -21,10 +21,13 @@ class TPicture(Structure):
 class TGRobot(Structure):
 	_fields_ = [("pca9685", c_void_p),
 	           ("camera", c_void_p),
+	           ("realsense", c_void_p),
 	           ("lowMode", c_int),
 	           ("numServos", c_int),
 	           ("servos", TServo * 16),
-	           ("picture", TPicture)]
+	           ("picture", TPicture),
+	           ("surfacePosPr", c_void_p),
+	           ("surfacePosK", c_int)]
 
 	def __init__(self):
 		global g_GRobotModule
@@ -74,6 +77,10 @@ class TGRobot(Structure):
 		g_GRobotModule.depth(byref(self))
 		return self.picture.getJPG()
 
+	def calibrate(self):
+		g_GRobotModule.calibrate(byref(self))
+		return self.picture.getJPG()
+
 	def scan(self):
 		g_GRobotModule.scan(byref(self))
 		return self.picture.getJPG()
@@ -90,6 +97,7 @@ def init():
 	g_GRobotModule.setServoValue.argtypes = [POINTER(TGRobot), c_int, c_int]
 	g_GRobotModule.setServoAngle.argtypes = [POINTER(TGRobot), c_int, c_int]
 	g_GRobotModule.depth.argtypes = [POINTER(TGRobot)]
+	g_GRobotModule.calibrate.argtypes = [POINTER(TGRobot)]
 	g_GRobotModule.scan.argtypes = [POINTER(TGRobot)]
 
 	for servo in range(len(g_Servos)):

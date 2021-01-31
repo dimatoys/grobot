@@ -69,14 +69,13 @@ void TDepthFile::newFrame() {
 	fclose(f);
 }
 
-TCamera::TCamera(TDepth* depth) {
+TCamera::TCamera() {
 
 	buffer_size = 640*480;
 	buffer = new uint8_t[buffer_size];
+	data = NULL;
 
 	limit = 600;
-
-	this->depth = depth;
 
 	reg_k = 10;
 	reg_pr = new double[reg_k];
@@ -108,6 +107,30 @@ TCamera::TCamera(TDepth* depth) {
 	reg_surface = NULL;
 }
 
+TCamera::~TCamera() {
+	if (data != NULL) {
+		delete data;
+	}
+}
+
+void TCamera::allocate(int newWidth, int newHeight, int newComponents) {
+	if (data != NULL) {
+		if ((width != newWidth) || (height != newHeight) || (components != newComponents)) {
+			delete data;
+		} else {
+			return;
+		}
+	}
+	width = newWidth;
+	height = newHeight;
+	components = newComponents;
+	data = new uint8_t[width*height*components];
+}
+
+void TCamera::set(int x, int y, uint8_t* color) {
+	memcpy(data + (x + width * y) * components, color, components);
+}
+
 void TCamera::resetBuffer() {
 	buffer_ptr = 0;
 }
@@ -124,18 +147,9 @@ void TCamera::writeBuffer(const void* data, int size) {
 	buffer_ptr += size;
 }
 
-void TCamera::scan() {
-	
-	clock_gettime(CLOCK_REALTIME, &start_scan);
-	depth->newFrame();
-	clock_gettime(CLOCK_REALTIME, &image_ready);
-
-	//depth->save();
-}
-
 #define AREA(x, y) (x >= 92) && (x + y >= 302) && (y-x >= 130-848) && ((y <= 340) || (x<= 750 )) && ((y <= 422) || (x <= 350) || (x >= 640))
 
-void TCamera::calibrate() {
+void TCamera::calibrate(TDepth* depth) {
 
 	int step = 10;
 	double x1[depth->width * depth->height / step / step];
@@ -195,7 +209,10 @@ void TCamera::calibrate() {
 	delete data;
 }
 
-void TCamera::drawDepth(uint8_t* data) {
+void TCamera::drawDepth(TDepth* depth) {
+
+	allocate(depth->width, depth->height, 3);
+
 	max = 0;
 	min = limit;
 
@@ -234,18 +251,14 @@ void TCamera::drawDepth(uint8_t* data) {
 			}
 		}
 	}
-
-	clock_gettime(CLOCK_REALTIME, &drawn);
 }
 
-void TCamera::saveJpg(uint8_t* data) {
+void TCamera::saveJpg() {
 	resetBuffer();
 	stbi_write_jpg_to_func(
 		[](void *context, void *compressed, int size) {
 			((TCamera*)context)->writeBuffer(compressed, size);
-		}, this, depth->width, depth->height, 3, data, 90);
-
-	clock_gettime(CLOCK_REALTIME, &saved);
+		}, this, width, height, components, data, 90);
 }
 
 struct TSlice {
@@ -300,22 +313,25 @@ struct TObject {
 	}
 };
 
-void TCamera::process(uint8_t* data) {
-	int height = 434;
+void TCamera::processInit(TDepth* depth) {
+	int sheight = 434;
 	
 	if (reg_surface == NULL) {
-		reg_surface = new int16_t[depth->width * height];
+		reg_surface = new int16_t[depth->width * sheight];
 		auto r = reg_surface;
 		auto w2 = depth->width / 2;
 		auto h2 = depth->height / 2;
-		for (int y = 0; y < height; ++y) {
+		for (int y = 0; y < sheight; ++y) {
 			for (int x = 0; x < depth->width; ++x) {
 				*r++ = (int16_t)Predict(x - w2, y - h2, reg_k, reg_pr);
 			}
 		}
 	}
+}
 
-	clock_gettime(CLOCK_REALTIME, &init);
+void TCamera::process(TDepth* depth) {
+
+	int sheight = 434;
 
 	int step = 10;
 	int min_y = 20;
@@ -332,7 +348,7 @@ void TCamera::process(uint8_t* data) {
 	for (int x = depth->width - 1; x >= 0 ; x -= step) {
 		int start_y = -1;
 		int last_h;
-		for (int y = height-1; y >=0; --y) {
+		for (int y = sheight-1; y >=0; --y) {
 			auto d = depth->get_distance_mm(x, y);
 			if (d > 0) {
 				auto h = reg_surface[x + y * depth->width] - (int16_t)d;
@@ -409,6 +425,8 @@ void TCamera::process(uint8_t* data) {
 		delete *i;
 	}
 
+	allocate(depth->width, depth->height, 3);
+
 	for(int i = objs.size() - 1; i >= 0 ; --i) {
 		TObject* obj = objs[i];
 		for (std::list<int>::const_iterator ri = obj->refs.cbegin(); ri != obj->refs.cend(); ++ri) {
@@ -442,19 +460,22 @@ void TCamera::process(uint8_t* data) {
 
 		delete obj;
 	}
-
-	clock_gettime(CLOCK_REALTIME, &processed);
 }
 
-long get_diff(struct timespec& start, struct timespec& end) {
-	return (end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec);
-}
-
-void TCamera::time_stat() {
-	printf("scan:       %-12.9f\n", (double)get_diff(start_scan, image_ready)/ 1000000000.0);
-	printf("draw:       %-12.9f\n", (double)get_diff(image_ready, drawn)/ 1000000000.0);
-	printf("init:       %-12.9f\n", (double)get_diff(drawn, init)/ 1000000000.0);
-	printf("process:    %-12.9f\n", (double)get_diff(init, processed)/ 1000000000.0);
-	printf("save:       %-12.9f\n", (double)get_diff(processed, saved)/ 1000000000.0);
-	printf("\ntotal:      %-12.9f\n", (double)get_diff(start_scan, saved)/ 1000000000.0);
+void TCamera::calibrate2(TDepth* depth) {
+	uint8_t min_color[] = {100,100,255};
+	for (int y = 0; y <depth->height;++y) {
+		int min = 1000000;
+		for (int x = 0; x < depth->width;++x) {
+			auto d = depth->get_distance_mm(x, y);
+			if (d > 0 && d < min) {
+				min = d;
+			}
+		}
+		for (int x = 0; x < depth->width;++x) {
+			if (depth->get_distance_mm(x, y) == min) {
+				set(x,y, min_color);
+			}
+		}
+	}
 }

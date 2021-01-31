@@ -1,12 +1,128 @@
 #include "grobot.h"
 #include "pca9685.h"
 #include "realsense.h"
+#include "regression.h"
 
 #include <stdio.h>
 #include <bcm2835.h>
+#include <math.h>
 
 int PIN_LEFT_GRIPPER = 23;
 int PIN_RIGHT_GRIPPER = 24;
+
+void ABtoPOS(double* x, double* y) {
+    double R1 = 175;
+    double R2 = 40;
+    double R3 = 265;
+    double R4 = 59;
+    double a = M_PI * (x[0] - 500) / 1000;
+    double b = M_PI * (x[1] - 500) / 1000;
+
+    y[0] = R1 * sin(b) + R2 * sin(b - M_PI / 4) + R3 * sin(a + b - M_PI / 4) + R4 * sin(a + b - M_PI / 4 - M_PI / 2);
+    y[1] = R1 * cos(b) + R2 * cos(b - M_PI / 4) + R3 * cos(a + b - M_PI / 4) + R4 * cos(a + b - M_PI / 4 - M_PI / 2);
+}
+
+void generateABPR(TGRobot* grobot, int k) {
+	double ab[] = {	1000, 200,
+					 800, 300,
+					 900, 300,
+					1000, 300,
+					 300, 500,
+					 500, 500,
+					 700, 500,
+					 900, 500,
+					1000, 500,
+					 100, 600,
+					 300, 600,
+					 500, 600,
+					 700, 600,
+					 900, 600,
+					1000, 600,
+					   0, 800,
+					 100, 800,
+					 300, 800,
+					 500, 800,
+					   0,1000,
+					 100,1000};
+	double pos[] = {
+					-308,283,
+					-331,324,
+					-248,369,
+					-166,383,
+					-300,170,
+					-253,354,
+					 -97,459,
+					  84,437,
+					 151,389,
+					-196,79,
+					-213,274,
+					 -96,425,
+					  86,461,
+					 245,371,
+					 290,300,
+					 -96,96,
+					 -78,199,
+					  47,347,
+					 243,364,
+					   5,135,
+					  85,195
+};
+	int n = sizeof(ab) / sizeof(ab[0]) / 2;
+
+	double* x = new double[n*2];
+	for (int i = 0; i < n;++i) {
+		x[i*2] = ab[i*2];
+		x[i*2+1] = ab[i*2+1];
+		Reverse(ABtoPOS,pos +i*2, 2, x + i*2, 2, 0.1);
+	}
+	// regression level, k[yn=1] 1..5 k[yn=2] 1,3,6,10,15
+	grobot->surfacePosK = k;
+	grobot->surfacePosPr = new double[k*2];
+
+	GeneratePR(n, ab, 2, grobot->surfacePosK, x, 2, grobot->surfacePosPr);
+/*
+	for (int i = 0; i < n; ++i) {
+		double xc[2];
+		double y[2];
+		Predict(ab + i*2, 2, grobot->surfacePosPr, grobot->surfacePosK, xc, 2);
+		ABtoPOS(xc,y);
+		printf("%f %f -> %f %f -> %f %f (%f %f -> %f %f) %f\n", ab[i*2], ab[i*2+1], xc[0], xc[1], y[0], y[1], x[i*2], x[i*2+1], pos[i*2], pos[i*2+1],
+			sqrt((y[0] -pos[i*2]) * (y[0] -pos[i*2]) + (y[1] -pos[i*2+1]) * (y[1] -pos[i*2+1])));
+	}
+*/
+	delete x;
+
+	double abc[2];
+	double xmin = 0;
+	double xmax = 0;
+	double ymin = 200;
+	double ymax = 200;
+	
+	for (abc[0] = 0.0; abc[0] <= 1000.0; abc[0] += 1.0) {
+		for (abc[1] = 0.0; abc[1] <=1000.0; abc[1] += 1.0) {
+			double abm[2];
+			double xy[2];
+			Predict(abc, 2, grobot->surfacePosPr, grobot->surfacePosK, abm, 2);
+			ABtoPOS(abm,xy);
+			if (xy[0] < xmin) {
+				xmin = xy[0];
+			} else {
+				if (xy[0] > xmax) {
+					xmax = xy[0];
+				}
+			}
+			if (xy[1] < ymin) {
+				ymin = xy[1];
+			} else {
+				if (xy[1] > ymax) {
+					ymax = xy[1];
+				}
+			}
+		}
+	}
+
+}
+
 
 void init(TGRobot* grobot) {
 	printf("init\n");
@@ -31,10 +147,6 @@ void init(TGRobot* grobot) {
 	grobot->servos[SERVO_B].hardware_min = 250;
 	grobot->servos[SERVO_B].hardware_max = 950;
 
-	/*
-	{-183.628449874737, 242.43148924781872, 0.5239651492979012, 0.5069566318724195, 1.1910230397869288, -0.20377375204484238, -0.0002828810313428962, 0.00014770070135699696, -0.00026993627067742326, 0.00015515328449045907, -0.00014413097978992095, 0.00010431124630473821}
-	*/
-	
 	// init servos
 	PCA9685* pca9685 = new PCA9685();
 	pca9685->SetFrequency(100);
@@ -47,7 +159,11 @@ void init(TGRobot* grobot) {
 	bcm2835_gpio_fsel(PIN_RIGHT_GRIPPER, BCM2835_GPIO_FSEL_INPT);
 	bcm2835_gpio_set_pud(PIN_RIGHT_GRIPPER, BCM2835_GPIO_PUD_UP);
 
-	grobot->camera = new TCamera(new TRealSense());
+	grobot->camera = new TCamera();
+	grobot->realsense = new TRealSense();
+
+	generateABPR(grobot, 6);
+
 
 }
 
@@ -80,25 +196,39 @@ void setServoAngle(TGRobot* grobot, int servo, int angle) {
 	}
 }
 
+void setSurfacePosition(TGRobot* grobot, double x, double y) {
+}
+
 void depth(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
-	camera->scan();
-	uint8_t* data = new uint8_t[camera->depth->width * camera->depth->height * 3];
-	camera->drawDepth(data);
-	camera->saveJpg(data);
-	delete data;
+	TDepth* depth = (TDepth*)grobot->realsense;
+	depth->newFrame();
+	camera->drawDepth(depth);
+	camera->saveJpg();
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;
 }
 
+void calibrate(TGRobot* grobot) {
+	TCamera* camera = (TCamera*)grobot->camera;
+	TDepth* depth = (TDepth*)grobot->realsense;
+	depth->newFrame();
+	camera->drawDepth(depth);
+	camera->calibrate2(depth);
+	camera->saveJpg();
+	grobot->picture.buffer = (char*)camera->buffer;
+	grobot->picture.buffer_size = camera->buffer_ptr;
+}
+
+
 void scan(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
-	camera->scan();
-	uint8_t* data = new uint8_t[camera->depth->width * camera->depth->height * 3];
-	camera->drawDepth(data);
-	camera->process(data);
-	camera->saveJpg(data);
-	delete data;
+	TDepth* depth = (TDepth*)grobot->realsense;
+	depth->newFrame();
+	camera->drawDepth(depth);
+	camera->processInit(depth);
+	camera->process(depth);
+	camera->saveJpg();
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;
 }
