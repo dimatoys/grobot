@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 void ReverseMatrix(int n, double* matrix, double* inv){
 
@@ -307,4 +308,83 @@ void Predict(double* x, int xn, double* pr, int k, double* y, int yn) {
 		}
 	}
 	//printf("\n");
+}
+
+double Reverse(void (*f)(double*,double*), double* y, int yn, double* x, int xn, double step) {
+	int dirs = (int)pow(3,xn)-1;
+	double* dir = new double[dirs * xn];
+	for (int i = 0; i < xn; ++i){
+		dir[i] = -step;
+	}
+	for (int i = 1; i<dirs; ++i) {
+		double add = step;
+		bool allZero = true;
+		for (int j = 0; j < xn; ++j) {
+			double v = dir[(i-1)*xn+j];
+			double nv;
+			if (add > 0) {
+				if(v <= 0) {
+					nv = v + add;
+					add = 0;
+				} else {
+					nv = -step;
+				}
+			} else {
+				nv = v;
+			}
+			dir[i * xn + j] = nv;
+			allZero &= (nv == 0.0);
+		}
+		if (allZero) {
+			dir[i*xn] = step;
+		}
+	}
+	double* yc = new double[yn];
+	
+	f(x,yc);
+	
+	double d0 = 0;
+	for (int  i = 0; i < yn; ++i) {
+		auto di = y[i] - yc[i];
+		d0+= di * di;
+	}
+	
+	//printf("d0=%f\n", d0);
+	
+	double* xc = new double[xn];
+	bool hasUpdate = true;
+	while(hasUpdate){
+		hasUpdate = false;
+		for (int i = 0; i < dirs; ++i) {
+			for (int j = 0; j < xn; ++j) {
+				xc[j] = x[j] + dir[i * xn + j];
+				//printf("%f ", xc[j]);
+			}
+			f(xc,yc);
+			double dc = 0;
+			//printf("-> ");
+			for (int j = 0; j < yn; ++j) {
+				auto di = y[j] - yc[j];
+				dc+= di * di;
+				//printf("%f(%f) ", yc[j], y[j]);
+			}
+			//printf(" d=%f\n", dc);
+			if (dc < d0) {
+				//printf("move %f\n", dc);
+				for (int  k =0; k < xn; ++k) {
+					x[k] = xc[k];
+				}
+				d0 = dc;
+				hasUpdate = true;
+				//break;
+			}
+		}
+	
+	}
+	delete dir;
+	delete yc;
+	delete xc;
+	
+	return d0;
+	
 }

@@ -20,10 +20,13 @@ struct TPicture {
 struct TGRobot {
 	void*	pca9685;
 	void*	camera;
+	void*	realsense;
 	int		lowMode;
 	int		numServos;
 	TServo	servos[16];
 	TPicture picture;
+	double* surfacePosPr;
+	int		surfacePosK;
 };
 
 void init(TGRobot* grobot);
@@ -32,6 +35,10 @@ unsigned int readSensors(TGRobot* grobot);
 void setServoValue(TGRobot* grobot, int servo, int value);
 void setServoAngle(TGRobot* grobot, int servo, int angle);
 void depth(TGRobot* grobot);
+void calibrate(TGRobot* grobot);
 void scan(TGRobot* grobot);
 
 }
+
+void generatePR(TGRobot* grobot, int k);
+void ABtoPOS(double* x, double* y);
