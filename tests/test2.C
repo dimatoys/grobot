@@ -84,11 +84,30 @@ void testF(double* x, double* y) {
 
 
 void rtest1(){
-	double y[2] = {20,15};
+	double x0[2] = {10,5};
+	double y[2];
+	testF(x0, y);
+
 	double x[2] = {0,0};
 	Reverse(testF,y, 2, x, 2, 0.1);
 	
 	printf("%f,%f\n", x[0], x[1]);
+}
+
+double testBF(double* x, double* p) {
+	return x[0] * p[0] + x[1] * p[1];
+}
+
+void bftest1() {
+
+	double x[] = {0,0, 0,1, 1,1};
+	double p0[] = {3,4};
+	double y[] = {testBF(x + 0, p0), testBF(x + 2, p0), testBF(x + 4, p0)};
+	double p[] = {0,0};
+
+	double d =  BestFit(testBF, 3, 2, x, y, 2, p, 0.1);
+
+	printf("%f %f d=%f\n", p[0], p[1], d);
 }
 
 /*
@@ -342,6 +361,7 @@ int main(int argc, char **argv)
 	//PRtest2();
 	//videoTest();
 	//rtest1();
+	bftest1();
 	//rtest2();
-	rtest3();
+	//rtest3();
 }

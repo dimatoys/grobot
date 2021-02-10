@@ -349,37 +349,33 @@ double Reverse(void (*f)(double*,double*), double* y, int yn, double* x, int xn,
 		d0+= di * di;
 	}
 	
-	//printf("d0=%f\n", d0);
-	
 	double* xc = new double[xn];
-	bool hasUpdate = true;
-	while(hasUpdate){
-		hasUpdate = false;
+	while(true){
+		int i2 = -1;
+		double d2 = d0;
 		for (int i = 0; i < dirs; ++i) {
 			for (int j = 0; j < xn; ++j) {
 				xc[j] = x[j] + dir[i * xn + j];
-				//printf("%f ", xc[j]);
 			}
 			f(xc,yc);
 			double dc = 0;
-			//printf("-> ");
 			for (int j = 0; j < yn; ++j) {
 				auto di = y[j] - yc[j];
 				dc+= di * di;
-				//printf("%f(%f) ", yc[j], y[j]);
 			}
-			//printf(" d=%f\n", dc);
-			if (dc < d0) {
-				//printf("move %f\n", dc);
-				for (int  k =0; k < xn; ++k) {
-					x[k] = xc[k];
-				}
-				d0 = dc;
-				hasUpdate = true;
-				//break;
+			if (dc < d2) {
+				d2 = dc;
+				i2 = i;
 			}
 		}
-	
+		if (i2 < 0) {
+			break;
+		}
+
+		for (int  j =0; j < xn; ++j) {
+			x[j] += dir[i2 * xn + j];
+		}
+		d0 = d2;
 	}
 	delete dir;
 	delete yc;
@@ -387,4 +383,72 @@ double Reverse(void (*f)(double*,double*), double* y, int yn, double* x, int xn,
 	
 	return d0;
 	
+}
+
+double BestFit(double (*f)(double*,double*), int n, int xn, double* x, double* y, int pn, double* p, double step) {
+	int dirs = (int)pow(3,pn)-1;
+	double* dir = new double[dirs * pn];
+	for (int i = 0; i < pn; ++i){
+		dir[i] = -step;
+	}
+	for (int i = 1; i<dirs; ++i) {
+		double add = step;
+		bool allZero = true;
+		for (int j = 0; j < pn; ++j) {
+			double v = dir[(i-1)*pn+j];
+			double nv;
+			if (add > 0) {
+				if(v <= 0) {
+					nv = v + add;
+					add = 0;
+				} else {
+					nv = -step;
+				}
+			} else {
+				nv = v;
+			}
+			dir[i * pn + j] = nv;
+			allZero &= (nv == 0.0);
+		}
+		if (allZero) {
+			dir[i*pn] = step;
+		}
+	}
+
+	double d0 = 0;
+	for (int i = 0; i < n; ++i) {
+		double dc = f(x + i * xn, p) - y[i];
+		d0 += dc * dc;
+	}
+
+	double* pc = new double[pn];
+	while(true){
+		auto d2 = d0;
+		int i2 = -1;
+		for (int i = 0; i < dirs; ++i) {
+			for (int j = 0; j < pn; ++j) {
+				pc[j] = p[j] + dir[pn *i + j];
+			}
+			double d1 = 0;
+			for (int j = 0; j < n; ++j) {
+				double dc = f(x + j * xn, pc) - y[j];
+				d1+= dc * dc;
+			}
+			if (d1 < d2) {
+				d2 = d1;
+				i2 = i;
+			}
+		}
+		if (i2 < 0) {
+			break;
+		}
+		for (int j = 0; j < pn; ++j) {
+			p[j] += dir[pn *i2 + j];
+		}
+		d0 = d2;
+	}
+	delete dir;
+	delete pc;
+	
+	return d0;
 }
