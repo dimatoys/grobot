@@ -213,6 +213,7 @@ void calibrate(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
 	TDepth* depth = (TDepth*)grobot->realsense;
 	depth->newFrame();
+	depth->saveJson("html/calibration.json");
 	camera->drawDepth(depth);
 	camera->calibrate2(depth);
 	camera->saveJpg();

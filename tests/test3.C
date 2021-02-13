@@ -74,6 +74,13 @@ void videoTest() {
 	FILE *f = fopen("scan.jpg", "wb");
 	fwrite(camera.buffer, camera.buffer_ptr, 1, f);
 	fclose(f);
+	
+	char c = '[';
+	for (int y= 0; y < src.height; ++y) {
+		printf("%c%d", c, src.get_distance_mm(src.width / 2, y));
+		c = ',';
+	}
+	printf("]\n");
 }
 
 int main(int argc, char **argv)

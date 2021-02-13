@@ -9,11 +9,14 @@
 #include <list>
 #include <vector>
 
-void TDepth::save() {
+void TDepth::save(const char* fileName) {
 
-	char file_name[100];
-	sprintf(file_name,"depth%lu.csv", time(NULL));
-	FILE* f = fopen(file_name, "w");
+	char fileNameBuffer[100];
+	if (fileName == NULL) {
+		sprintf(fileNameBuffer,"depth%lu.csv", time(NULL));
+		fileName = fileNameBuffer;
+	}
+	FILE* f = fopen(fileName, "w");
 	for (auto y = 0; y < height; ++y) {
 		const char* c = "";
 		for (auto x = 0; x < width; ++x) {
@@ -23,6 +26,30 @@ void TDepth::save() {
 		}
 		fputc('\n', f);
 	}
+	fclose(f);
+}
+
+void TDepth::saveJson(const char* fileName) {
+
+	char fileNameBuffer[100];
+	if (fileName == NULL) {
+		sprintf(fileNameBuffer,"depth%lu.csv", time(NULL));
+		fileName = fileNameBuffer;
+	}
+	FILE* f = fopen(fileName, "w");
+	char ct = '[';
+	for (auto y = 0; y < height; ++y) {
+		fputc(ct,f);
+		char c = '[';
+		for (auto x = 0; x < width; ++x) {
+			int d = get_distance_mm(x, y);
+			fprintf(f, "%c%d",c,d);
+			c = ',';
+		}
+		fputc(']', f);
+		ct = ',';
+	}
+	fputc(']', f);
 	fclose(f);
 }
 
@@ -462,6 +489,21 @@ void TCamera::process(TDepth* depth) {
 	}
 }
 
+double yToDistance(double* y, double* params) {
+	auto yViewAngle = params[0];
+	auto angle      = params[1];
+	auto high       = params[2];
+	auto curve      = params[4];
+
+	double a = curve / 100;
+	double b = 1 - a;
+	double v = (a * *y + b) * *y;
+	double d = high / cos((angle + yViewAngle * v / 2) * M_PI / 180);
+
+	return d;
+}
+
+
 void TCamera::calibrate2(TDepth* depth) {
 	uint8_t min_color[] = {100,100,255};
 	for (int y = 0; y <depth->height;++y) {
@@ -478,4 +520,27 @@ void TCamera::calibrate2(TDepth* depth) {
 			}
 		}
 	}
+/*
+	double params[4] = {50, 45, 330, 0};
+	
+	double x[400];
+	double y[400];
+	int n = 0;
+	for (int i = depth->height - 1; i >= depth->height / 2; i -= 1) {
+		x[n] = 2.0 * (depth->height / 2.0 - i) / depth->height; // -1 ..  + 1
+		y[n] = depth->get_distance_mm(depth->width / 2 , i);
+		if (y[n] > 0) {
+			++n;
+		}
+	}
+
+	double d = BestFit(yToDistance, n, 1, x, y, 4, params, 0.1);
+
+	for (int i = 0; i < n; ++i) {
+		auto d = yToDistance(x + i, params);
+		printf("%f: %f -> %f\n", x[i], y[i], d);
+	}
+
+	printf("d=%f n=%d view=%f angle=%f high=%f curve=%f\n", sqrt(d) / n, n, params[0], params[1], params[2], params[3]);
+*/
 }

@@ -11,7 +11,8 @@ public:
 	virtual void newFrame()=0;
 	virtual float get_distance(int x, int y)=0;
 	virtual uint16_t get_distance_mm(int x, int y)=0;
-	void save();
+	void save(const char* fileName);
+	void saveJson(const char* fileName);
 
 	virtual ~TDepth() {};
 

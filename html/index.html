@@ -6,6 +6,8 @@
 		<script src="/html/jquery-ui-1.12.1.custom/jquery-ui.js"></script>
 		<script type="text/javascript">
 
+g_depth = undefined
+
 function getSensors() {
 	$.getJSON("/readSensors", function(data) {
 		$("#left_sensor").css('background-color', data.left > 0 ? "#FF8080": "#80FF80")
@@ -110,7 +112,13 @@ $(function() {
 	})
 
 	$("#calibrate").click(function(){
-		$("#scan_image").prop("src", "/calibrate?" + new Date().getTime());
+		$("#calibrate_image").prop("src", "/calibrate?" + new Date().getTime());
+	})
+
+	$("#calibrate_image").on('load', function(){
+		$.getJSON("/html/calibration.json", function(depth) {
+			g_depth =depth;
+		})
 	})
 
 	$("#scan").click(function(){
@@ -121,6 +129,19 @@ $(function() {
 		imgpos = $("#scan_image").position()
 		$("#coordinates").text("( " + (event.pageX - imgpos.left) + ", " + (event.pageY - imgpos.top) + " )")
 	})
+
+	$("#calibrate_image").mousemove(function(event){
+		imgpos = $("#calibrate_image").position()
+		x = Math.floor(event.pageX - imgpos.left)
+		y = Math.floor(event.pageY - imgpos.top)
+		if (g_depth != undefined) {
+			d = g_depth[y][x]
+		} else {
+			d = "";
+		}
+		$("#coordinates").text("( " + x + ", " + y + " ) " + d)
+	})
+
 
 	$("#lowMode").change(function(){
 		$.getJSON("/setLowMode/" + ($(this).is(':checked') ? "1" : "0"),updateServoAngles)
@@ -152,5 +173,6 @@ $(function() {
 		<span id="coordinates"></span>
 		<br>
 		<img id="scan_image">
+		<img id="calibrate_image">
 	</body>
 </html>
