@@ -15,8 +15,9 @@ void perfTest() {
 	struct timespec start_scan;
 	struct timespec image_ready;
 	struct timespec drawn;
-	struct timespec init;
+	struct timespec calibrate;
 	struct timespec processed;
+	struct timespec visualized;
 	struct timespec saved;
 
 	TRealSense src;
@@ -33,11 +34,14 @@ void perfTest() {
 	camera.drawDepth(&src);
 	clock_gettime(CLOCK_REALTIME, &drawn);
 
-	camera.processInit(&src);
-	clock_gettime(CLOCK_REALTIME, &init);
+	camera.calibrate4(&src);
+	clock_gettime(CLOCK_REALTIME, &calibrate);
 
-	camera.process(&src);
+	camera.process4(&src);
 	clock_gettime(CLOCK_REALTIME, &processed);
+
+	camera.visualize4();
+	clock_gettime(CLOCK_REALTIME, &visualized);
 
 	camera.saveJpg();
 	FILE *f = fopen("scan.jpg", "wb");
@@ -48,13 +52,14 @@ void perfTest() {
 
 	printf("scan:       %-12.9f\n", (double)get_diff(start_scan, image_ready)/ 1000000000.0);
 	printf("draw:       %-12.9f\n", (double)get_diff(image_ready, drawn)/ 1000000000.0);
-	printf("init:       %-12.9f\n", (double)get_diff(drawn, init)/ 1000000000.0);
-	printf("process:    %-12.9f\n", (double)get_diff(init, processed)/ 1000000000.0);
-	printf("save:       %-12.9f\n", (double)get_diff(processed, saved)/ 1000000000.0);
+	printf("calibrate:  %-12.9f\n", (double)get_diff(drawn, calibrate)/ 1000000000.0);
+	printf("process:    %-12.9f\n", (double)get_diff(calibrate, processed)/ 1000000000.0);
+	printf("visualize:  %-12.9f\n", (double)get_diff(processed, visualized)/ 1000000000.0);
+	printf("save:       %-12.9f\n", (double)get_diff(visualized, saved)/ 1000000000.0);
 	printf("\ntotal:      %-12.9f\n", (double)get_diff(start_scan, saved)/ 1000000000.0);
 }
 
-void videoTest() {
+void surfaceTest1() {
 	TRealSense src;
 	//TDepthFile src("1609729260.csv");
 
@@ -63,31 +68,23 @@ void videoTest() {
 	src.newFrame();
 
 	camera.drawDepth(&src);
-	//camera.calibrate(&src);
-	camera.calibrate2(&src);
-
-	//camera.processInit(&src);
-
-	//camera.process(&src);
+	//camera.calibrate3(&src);
+	camera.calibrate4(&src);
+	camera.process4(&src);
+	camera.visualize4();
 
 	camera.saveJpg();
 	FILE *f = fopen("scan.jpg", "wb");
 	fwrite(camera.buffer, camera.buffer_ptr, 1, f);
 	fclose(f);
-	
-	char c = '[';
-	for (int y= 0; y < src.height; ++y) {
-		printf("%c%d", c, src.get_distance_mm(src.width / 2, y));
-		c = ',';
-	}
-	printf("]\n");
+
 }
 
 int main(int argc, char **argv)
 {
 
-	//perfTest();
-	videoTest();
+	perfTest();
+	//surfaceTest1();
 }
 
 /*

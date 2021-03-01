@@ -40,6 +40,23 @@ public:
 	}
 };
 
+const int MAX_OBJECTS = 100;
+
+typedef uint8_t CELL_STATUS;
+const CELL_STATUS CELL_UNDEFINED = 0;
+const CELL_STATUS CELL_BACKGROUND = 1;
+const CELL_STATUS CELL_NOT_CONFIDENT = 2;
+const CELL_STATUS CELL_OBJECT = 3;
+
+struct TObject {
+	int x;
+	int y;
+	int rx;
+	int ry;
+	int cnt;
+};
+
+
 class TCamera {
 
 	void resetBuffer();
@@ -56,26 +73,38 @@ public:
 	uint8_t* buffer;
 	int buffer_ptr;
 
-	uint16_t min;
-	uint16_t max;
 	uint16_t limit;
 
-	int       reg_k;
-	double*   reg_pr;
-	int16_t* reg_surface;
+	double* pr_a;
+	double* pr_b;
+
+	int cellSize;
+	int minObjH;
+	int minObjSize;
+	CELL_STATUS* cell_cache;
+	int cell_width;
+	int cell_height;
+
+	TObject objects[MAX_OBJECTS];
+	int numObjects;
 
 	TCamera();
 	~TCamera();
 
 	void allocate(int newWidth, int newHeight, int newComponents);
 	void set(int x, int y, uint8_t* color);
+	void set(int x0, int y0, int width, int height, uint8_t* color);
+	void oval(int x, int y, int rx, int ry, uint8_t* color);
 
 	void saveJpg();
 	void drawDepth(TDepth* depth);
 
-	void calibrate(TDepth* depth);
-	void calibrate2(TDepth* depth);
+	void calibrate4(TDepth* depth);
 
-	void processInit(TDepth* depth);
-	void process(TDepth* depth);
+	CELL_STATUS isCellObject(TDepth* depth, int x0, int y0);
+	void extractObject(TDepth* depth, int x0, int y0, TObject* obj);
+
+	void process4(TDepth* depth);
+	void visualize4();
+
 };
