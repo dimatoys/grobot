@@ -47,6 +47,7 @@ const CELL_STATUS CELL_UNDEFINED = 0;
 const CELL_STATUS CELL_BACKGROUND = 1;
 const CELL_STATUS CELL_NOT_CONFIDENT = 2;
 const CELL_STATUS CELL_OBJECT = 3;
+const CELL_STATUS CELL_SMALL_OBJECT = 4;
 
 struct TObject {
 	int x;
@@ -56,6 +57,10 @@ struct TObject {
 	int cnt;
 };
 
+struct TCellFrontier{
+	int x;
+	int y;
+};
 
 class TCamera {
 
@@ -84,6 +89,8 @@ public:
 	CELL_STATUS* cell_cache;
 	int cell_width;
 	int cell_height;
+	TCellFrontier* cell_frontier;
+	int frontier_size;
 
 	TObject objects[MAX_OBJECTS];
 	int numObjects;
@@ -101,10 +108,17 @@ public:
 
 	void calibrate4(TDepth* depth);
 
+	void initCache(TDepth* depth);
 	CELL_STATUS isCellObject(TDepth* depth, int x0, int y0);
-	void extractObject(TDepth* depth, int x0, int y0, TObject* obj);
+	void checkNewCell(TDepth* depth, int x, int y, int& cnt);
+	bool processFrontier(TDepth* depth, TCellFrontier& cf, int& cnt);
+	bool extractOvalObject(TDepth* depth, int x0, int y0, TObject* obj);
 
 	void process4(TDepth* depth);
 	void visualize4();
+
+	bool extractLineObjects(TDepth* depth, int x0, int y0);
+	void process5(TDepth* depth);
+	void visualize5();
 
 };

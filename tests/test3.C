@@ -80,11 +80,32 @@ void surfaceTest1() {
 
 }
 
+void smallObjTest() {
+	TRealSense src;
+	//TDepthFile src("1609729260.csv");
+
+	TCamera camera;
+
+	src.newFrame();
+
+	camera.drawDepth(&src);
+	camera.process5(&src);
+	camera.visualize5();
+
+	camera.saveJpg();
+	FILE *f = fopen("scan.jpg", "wb");
+	fwrite(camera.buffer, camera.buffer_ptr, 1, f);
+	fclose(f);
+
+}
+
+
 int main(int argc, char **argv)
 {
 
-	perfTest();
+	//perfTest();
 	//surfaceTest1();
+	smallObjTest();
 }
 
 /*

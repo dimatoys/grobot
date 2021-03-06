@@ -213,10 +213,11 @@ void calibrate(TGRobot* grobot) {
 	TCamera* camera = (TCamera*)grobot->camera;
 	TDepth* depth = (TDepth*)grobot->realsense;
 	depth->newFrame();
-	depth->saveJson("html/calibration.json");
+	//depth->saveJson("html/calibration.json");
 	camera->drawDepth(depth);
 	camera->calibrate4(depth);
 	camera->process4(depth);
+	camera->visualize4();
 	camera->saveJpg();
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;
@@ -229,6 +230,7 @@ void scan(TGRobot* grobot) {
 	depth->newFrame();
 	camera->drawDepth(depth);
 	camera->process4(depth);
+	camera->visualize4();
 	camera->saveJpg();
 	grobot->picture.buffer = (char*)camera->buffer;
 	grobot->picture.buffer_size = camera->buffer_ptr;

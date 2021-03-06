@@ -111,13 +111,14 @@ TCamera::TCamera() {
 	minObjH = 10.0;
 	minObjSize = 5;
 	cell_cache = NULL;
+	cell_frontier = NULL;
 }
 
 TCamera::~TCamera() {
 	if (data != NULL) {
 		delete data;
 	}
-	//pr_a, pr_b, cell_cache
+	//pr_a, pr_b, cell_cache, cell_frontier
 }
 
 void TCamera::allocate(int newWidth, int newHeight, int newComponents) {
@@ -297,24 +298,64 @@ CELL_STATUS TCamera::isCellObject(TDepth* depth, int x0, int y0) {
 			CELL_NOT_CONFIDENT;
 }
 
-struct TCellFrontier{
-	int x;
-	int y;
-};
+void TCamera::checkNewCell (TDepth* depth, int x, int y, int& cnt) {
+	int i = cell_width * y + x;
+	CELL_STATUS c = cell_cache[i];
+	if (c == CELL_UNDEFINED) {
+		c = isCellObject(depth, x * cellSize, y * cellSize);
+		cell_cache[i] = c;
+		if (c == CELL_OBJECT) {
+			cell_frontier[frontier_size++] = {x, y};
+			++cnt;
+		}
+	}
+}
 
-void TCamera::extractObject(TDepth* depth, int x0, int y0, TObject* obj) {
-	int cnt  = 1;
+bool TCamera::processFrontier(TDepth* depth, TCellFrontier& cf, int& cnt) {
+
+	if (frontier_size > 0) {
+
+		cf = cell_frontier[--frontier_size];
+		int newX = cf.x - 1;
+		if (newX >= 0) {
+			checkNewCell(depth, newX, cf.y, cnt);
+		}
+		newX = cf.x + 1;
+		if (newX < cell_width) {
+			checkNewCell(depth, newX, cf.y, cnt);
+		}
+		int newY = cf.y - 1;
+		if (newY >= 0) {
+			checkNewCell(depth, cf.x, newY, cnt);
+		}
+		newY = cf.y + 1;
+		if (newY < cell_height) {
+			checkNewCell(depth, cf.x, newY, cnt);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool TCamera::extractOvalObject(TDepth* depth, int x0, int y0, TObject* obj) {
+
+	frontier_size = 0;
+	obj->cnt = 0;
+	checkNewCell(depth, x0, y0, obj->cnt);
+	if (frontier_size == 0) {
+		return false;
+	}
+
 	int minX = cell_width;
 	int maxX = -1;
 	int minY = cell_height;
 	int maxY = -1;
 
-	TCellFrontier* cell_frontier = new TCellFrontier[cell_width * cell_height];
-	int frontier_size = 1;
-	cell_frontier[0] = {x0, y0};
-	
-	while(frontier_size > 0) {
-		TCellFrontier cf = cell_frontier[--frontier_size];
+	TCellFrontier cf;
+
+	while (processFrontier(depth, cf, obj->cnt)) {
 		if (cf.x < minX) {
 			minX = cf.x;
 		}
@@ -327,66 +368,17 @@ void TCamera::extractObject(TDepth* depth, int x0, int y0, TObject* obj) {
 		if (cf.y > maxY) {
 			maxY = cf.y;
 		}
-
-		int newX = cf.x - 1;
-		if (newX >= 0) {
-			CELL_STATUS c = cell_cache[cell_width*cf.y + newX];
-			if (c == CELL_UNDEFINED) {
-				c = isCellObject(depth, newX * cellSize, cf.y * cellSize);
-				cell_cache[cell_width*cf.y + newX] = c;
-				if (c == CELL_OBJECT) {
-					cell_frontier[frontier_size++] = {newX, cf.y};
-					++cnt;
-				}
-			}
-		}
-		newX = cf.x + 1;
-		if (newX < cell_width) {
-			CELL_STATUS c = cell_cache[cell_width*cf.y + newX];
-			if (c == CELL_UNDEFINED) {
-				c = isCellObject(depth, newX * cellSize, cf.y * cellSize);
-				cell_cache[cell_width*cf.y + newX] = c;
-				if (c == CELL_OBJECT) {
-					cell_frontier[frontier_size++] = {newX, cf.y};
-					++cnt;
-				}
-			}
-		}
-		int newY = cf.y - 1;
-		if (newY >= 0) {
-			CELL_STATUS c = cell_cache[cell_width*newY + cf.x];
-			if (c == CELL_UNDEFINED) {
-				c = isCellObject(depth, cf.x * cellSize, newY * cellSize);
-				cell_cache[cell_width*newY + cf.x] = c;
-				if (c == CELL_OBJECT) {
-					cell_frontier[frontier_size++] = {cf.x, newY};
-					++cnt;
-				}
-			}
-		}
-		newY = cf.y + 1;
-		if (newY < cell_height) {
-			CELL_STATUS c = cell_cache[cell_width*newY + cf.x];
-			if (c == CELL_UNDEFINED) {
-				c = isCellObject(depth, cf.x * cellSize, newY * cellSize);
-				cell_cache[cell_width*newY + cf.x] = c;
-				if (c == CELL_OBJECT) {
-					cell_frontier[frontier_size++] = {cf.x, newY};
-					++cnt;
-				}
-			}
-		}
 	}
-	
-	delete cell_frontier;
+
 	obj->x = (minX + maxX) * cellSize / 2 + cellSize / 2;
 	obj->y = (minY + maxY) * cellSize / 2 + cellSize / 2;
 	obj->rx = (maxX - minX) * cellSize / 2;
 	obj->ry = (maxY - minY) * cellSize / 2;
-	obj->cnt = cnt;
+
+	return true;
 }
 
-void TCamera::process4(TDepth* depth) {
+void TCamera::initCache(TDepth* depth) {
 	if (pr_a == NULL) {
 		calibrate4(depth);
 	}
@@ -395,24 +387,24 @@ void TCamera::process4(TDepth* depth) {
 		cell_width = depth->width / cellSize - 1;
 		cell_height = depth->height / cellSize - 1;
 		cell_cache = new CELL_STATUS[cell_width * cell_height];
+		cell_frontier = new TCellFrontier[cell_width * cell_height];
 	}
 
 	memset(cell_cache,CELL_UNDEFINED,cell_width * cell_height);
+}
+
+void TCamera::process4(TDepth* depth) {
+
+	initCache(depth);
 
 	numObjects = 0;
 
 	for (int y0 = 0; y0 < cell_height; ++y0) {
 		for(int x0 = 0; x0 < cell_width; ++x0) {
-			CELL_STATUS c = cell_cache[cell_width*y0 + x0];
-			if (c == CELL_UNDEFINED) {
-				c = isCellObject(depth, x0 * cellSize, y0 * cellSize);
-				cell_cache[cell_width*y0 + x0] = c;
-				if (c == CELL_OBJECT) {
-					extractObject(depth, x0, y0, objects + numObjects);
-					if (objects[numObjects].cnt >= minObjSize) {
-						if(++numObjects ==MAX_OBJECTS) {
-							return;
-						}
+			if(extractOvalObject(depth, x0, y0, objects + numObjects)) {
+				if (objects[numObjects].cnt >= minObjSize) {
+					if(++numObjects ==MAX_OBJECTS) {
+						return;
 					}
 				}
 			}
@@ -449,5 +441,84 @@ void TCamera::visualize4() {
 
 	for (int i = 0; i < numObjects; ++i) {
 		oval(objects[i].x, objects[i].y, objects[i].rx, objects[i].ry, objColor);
+	}
+}
+
+bool TCamera::extractLineObjects(TDepth* depth, int x0, int y0) {
+	frontier_size = 0;
+	int cnt = 0;
+	checkNewCell(depth, x0, y0, cnt);
+	if (frontier_size == 0) {
+		return false;
+	}
+
+	TCellFrontier* cfa = new TCellFrontier[cell_width * cell_height];
+
+	int n = 0;
+	while (processFrontier(depth, cfa[n], cnt)) {
+		++n;
+	}
+
+	delete cfa;
+	
+	printf("n=%d cnt=%d\n", n, cnt);
+
+	return true;
+}
+
+void TCamera::process5(TDepth* depth) {
+
+	initCache(depth);
+
+	//numObjects = 0;
+
+	//TLineObject lineObjects[MAX_OBJECTS];
+
+
+	for (int y0 = 0; y0 < cell_height; ++y0) {
+		for(int x0 = 0; x0 < cell_width; ++x0) {
+			if(extractLineObjects(depth, x0, y0)) {
+				//if (objects[numObjects].cnt >= minObjSize) {
+				//	if(++numObjects ==MAX_OBJECTS) {
+				//		return;
+				//	}
+				//}
+			}
+		}
+	}
+}
+
+void TCamera::visualize5() {
+
+	uint8_t cellBackground[] = {80, 80, 255};
+	uint8_t cellObject[] = {255, 80, 80};
+	uint8_t cellSmallObject[] = {80,255,80};
+	
+	for (int y0 = 0; y0 < cell_height; ++y0) {
+		for(int x0 = 0; x0 < cell_width; ++x0) {
+			switch(cell_cache[cell_width*y0 + x0]){
+				case CELL_BACKGROUND:
+					set(x0 * cellSize + cellSize / 2 - 1,
+					    y0 * cellSize + cellSize / 2 - 1,
+					    2,
+					    2,
+					    cellBackground);
+					break;
+				case CELL_SMALL_OBJECT:
+					set(x0 * cellSize + cellSize / 2 - 1,
+					    y0 * cellSize + cellSize / 2 - 1,
+					    2,
+					    2,
+					    cellSmallObject);
+					break;
+				case CELL_OBJECT:
+					set(x0 * cellSize + cellSize / 2 - 1,
+					    y0 * cellSize + cellSize / 2 - 1,
+					    2,
+					    2,
+					    cellObject);
+					break;
+			}
+		}
 	}
 }
