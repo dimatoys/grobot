@@ -1,0 +1,514 @@
+from math import *
+import Part
+from FreeCAD import Base
+
+X = Base.Vector(1, 0, 0)
+Y = Base.Vector(0, 1, 0)
+Z = Base.Vector(0, 0, 1)
+O = Base.Vector(0, 0, 0)
+
+# min strong deepness
+base = 3.0
+min_z = 0.3
+strong_base = base * 1.5
+min_base = 2.0
+border = 0.5
+
+# holes sizes for bolts
+m3_hole_radius = 1.8
+m3_head_radius = 3.0
+m3_head_high = 3.5
+
+m2_head_radius = 2.0
+m2_hole_radius = 1.3
+m2_head_high = 2.0
+
+m4_hole_radius = 2.5
+m4_head_radius = 4.0
+m4_head_high   = 5.0
+
+m6_hole_radius = 3.5
+
+wire = 1.5
+
+g_Shapes = []
+g_Shape = None
+g_Stack = []
+
+g_Colors = [(1.0, 1.0, 0.6),
+			(0.6, 1.0, 0.6),
+			(0.6, 0.6, 1.0),
+			(1.0, 0.6, 0.6),
+			(1.0, 0.6, 1.0),
+			(0.6, 1.0, 1.0)]
+
+def Show():
+	global g_Shape
+	global g_Shapes
+	global g_Colors
+
+	for obj in App.ActiveDocument.Objects:
+		App.ActiveDocument.removeObject(obj.Name)
+	for shape in g_Shapes:
+		Part.show(shape)
+	if g_Shape is not None:
+		Part.show(g_Shape)
+	Gui.ActiveDocument.ActiveView.setAxisCross(True)
+
+	i = 0	
+	for obj in App.ActiveDocument.Objects:
+		obj.ViewObject.ShapeColor = g_Colors[i]
+		i += 1
+	print("Done")
+
+def endShape():
+	global g_Shape
+	global g_Shapes
+	if g_Shape is not None:
+		g_Shapes.append(g_Shape)
+	g_Shape = None
+
+def fuseBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = box if g_Shape is None else g_Shape.fuse(box)
+
+
+def cutBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = g_Shape.cut(box)
+
+def commonBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = g_Shape.common(box)
+
+def fuseCylinder(r, h, x = 0, y = 0, z = 0, dir = Z, angle=360):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir, angle)
+	g_Shape = cylinder if g_Shape is None else g_Shape.fuse(cylinder)
+
+def cutCylinder(r, h, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir)
+	g_Shape = g_Shape.cut(cylinder)
+
+def commonCylinder(r, h, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir)
+	g_Shape = g_Shape.common(cylinder)
+
+def fuseCone(h, r1, r2=0, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cone = Part.makeCone(r1, r2, h, X * x + Y * y + Z * z, dir)
+	g_Shape = cone if g_Shape is None else g_Shape.fuse(cone)
+
+def transform(m):
+	global g_Shape
+	g_Shape = g_Shape.transformGeometry(m)
+
+def mirrorX():
+	m = Base.Matrix()
+	m.A11 = -1		
+	transform(m)
+
+def mirrorY():
+	m = Base.Matrix()
+	m.A22 = -1		
+	transform(m)
+
+def mirrorZ():
+	m = Base.Matrix()
+	m.A33 = -1		
+	transform(m)
+
+def rotate(x, y, z, axis, angle):
+	global g_Shape
+	g_Shape.rotate(X * x + Y * y + Z * z, axis, angle)
+
+def move(x=0, y=0, z=0):
+	global g_Shape
+	g_Shape.translate(X * x + Y * y + Z * z)
+
+def push():
+	global g_Shape
+	global g_Stack
+	g_Stack.append(g_Shape)
+	g_Shape = None
+
+def pop():
+	global g_Shape
+	global g_Stack
+	old = g_Stack.pop()
+	if old is not None:
+		g_Shape = g_Shape.fuse(old)
+
+
+class BaseElement(object):
+	def show(self):
+		self.draw()
+		Show()
+
+class GearMotor(BaseElement):
+
+	def __init__(self, gearboxSize=9.0, hasEncoder=False):
+		self.gearboxSize = gearboxSize
+		self.hasEncode   = hasEncoder
+
+		self.shaftH = 10
+		self.shaftR = 1.5
+		self.motorW = 12
+		self.motorH = 10
+		self.motorL = 15
+
+		self.shaftSupportR = 2
+		self.shaftSupportH = 0.7
+
+		self.gearPlateThickness = 0.8
+		self.gearMountHolesPos = 4.5
+		self.gearSupportR = 1.5
+		self.gearSupportX = 4
+		self.gearSupportY = 3
+		self.gearPlatePos2 = 3.9
+
+	def draw(self):
+
+		# draw motor
+		fuseCylinder(self.motorW / 2, self.motorL)
+		commonBox(self.motorW, self.motorH, self.motorL, x = -self.motorW / 2, y=-self.motorH / 2)
+
+		# draw gear plates
+		fuseBox(self.motorW,self.motorH, self.gearPlateThickness, x=-self.motorW/2, y=-self.motorH / 2, z=-self.gearPlateThickness)
+		fuseBox(self.motorW,self.motorH, self.gearPlateThickness, x=-self.motorW/2, y=-self.motorH / 2, z=-self.gearPlatePos2)
+		fuseBox(self.motorW,self.motorH, self.gearPlateThickness, x=-self.motorW/2, y=-self.motorH / 2, z=-self.gearboxSize)
+
+		#draw shaft
+		fuseCylinder(self.shaftR,self.gearboxSize + self.shaftH, z=-self.gearboxSize - self.shaftH)
+
+		# draw shaft support
+		fuseCylinder(self.shaftSupportR, self.shaftSupportH, z = - self.gearboxSize - self.shaftSupportH)
+
+		# cut holes on gear		
+		cutCylinder(0.65, self.gearPlateThickness, self.gearMountHolesPos, 0,-self.gearboxSize)
+		cutCylinder(0.65, self.gearPlateThickness, -self.gearMountHolesPos, 0,-self.gearboxSize)
+
+		# draw Gear support
+		fuseCylinder(self.gearSupportR, self.gearboxSize,x =  self.gearSupportX, y = -self.gearSupportY, z=-self.gearboxSize)
+		fuseCylinder(self.gearSupportR, self.gearboxSize,x = -self.gearSupportX, y =  self.gearSupportY,  z=-self.gearboxSize)
+
+class MotorCoupler(BaseElement):
+
+	def __init__(self):
+		self.R1 = 11.0
+		self.R2 = 5.0
+		self.H1 = 2.0
+		self.H2 = 10.0
+		self.H4 = 8.0
+		self.R3 = 1.5
+		self.R4 = m3_hole_radius
+		self.holesPos = 8.0
+		self.holesR = m3_hole_radius
+		self.shaftDeep = 6.0
+
+	def draw(self):
+		fuseCylinder(self.R1, self.H1)
+		fuseCylinder(self.R2, self.H2, z = self.H1)
+		cutCylinder(self.R3, self.H1 + self.H2)
+		cutCylinder(self.holesR, self.H1, x = self.holesPos)
+		cutCylinder(self.holesR, self.H1, x = -self.holesPos)
+		cutCylinder(self.holesR, self.H1, y = self.holesPos)
+		cutCylinder(self.holesR, self.H1, y = -self.holesPos)
+		cutCylinder(self.R4, self.R2 * 2, x = -self.R2, z = self.H4, dir=X)
+
+class MotorSupport(BaseElement):
+
+	def __init__(self, motor, gear_support_thickness, base_thickness = base):
+		self.motor = motor
+		self.base_thickness = base_thickness
+		self.gear_support_thickness = gear_support_thickness
+
+	def draw(self):
+
+		width = self.motor.motorW + min_base * 4 + m3_hole_radius * 4
+
+		fuseBox(self.motor.motorW + min_base * 2, self.motor.motorL, self.base_thickness + self.motor.motorH / 2, x = -(self.motor.motorW + min_base * 2) / 2)
+		cutCylinder(self.motor.motorW / 2, self.motor.motorL, z=self.base_thickness + self.motor.motorH / 2, dir=Y)
+		fuseBox(width, self.motor.motorL + self.motor.gearboxSize, self.base_thickness, x = -width / 2)
+		cutBox(min_base + m3_hole_radius * 2, base + m3_hole_radius, self.base_thickness, x = - width / 2)
+		cutBox(min_base + m3_hole_radius * 2, base + m3_hole_radius, self.base_thickness, x = width / 2 - (min_base + m3_hole_radius * 2))
+
+		fuseBox(width, self.gear_support_thickness, self.base_thickness + self.motor.motorH, x = -width / 2, y = self.motor.motorL + self.motor.gearboxSize)
+
+		fuseBox(self.motor.gearSupportX - self.motor.gearSupportR - 1 + self.motor.motorW / 2,
+			    self.motor.gearPlatePos2 - self.motor.gearPlateThickness * 2,
+				self.motor.gearSupportR * 2,
+				-self.motor.motorW / 2, self.motor.motorL + self.motor.gearPlateThickness, self.base_thickness)
+
+		
+		fuseBox(self.motor.motorW / 2 - self.motor.gearSupportX, self.motor.gearboxSize - self.motor.gearPlateThickness * 2, self.motor.motorH / 2 - self.motor.gearSupportY,
+						x = self.motor.gearSupportX,
+						y = self.motor.motorL + self.motor.gearPlateThickness,
+						z = self.base_thickness)
+		
+		cutCylinder(self.motor.gearSupportR, self.motor.gearboxSize,
+						x= self.motor.gearSupportX,
+						y = self.motor.motorL,
+						z = self.motor.motorH / 2 - self.motor.gearSupportY + self.base_thickness,
+						dir = Y)
+
+		cutBox(self.motor.motorW / 2 - self.motor.gearSupportX, self.motor.gearPlateThickness, self.motor.motorH / 2 - self.motor.gearSupportY,
+						x = self.motor.gearSupportX,
+						y= self.motor.motorL + self.motor.gearPlatePos2 - self.motor.gearPlateThickness,
+						z = self.base_thickness)
+
+		fuseBox(min_base, self.motor.gearboxSize, self.base_thickness + self.motor.motorH / 2,
+						x = self.motor.motorW / 2,
+						y = self.motor.motorL)
+
+		fuseBox(min_base, self.motor.gearboxSize, self.base_thickness + self.motor.motorH / 2,
+						x = -self.motor.motorW / 2 - min_base,
+						y = self.motor.motorL)
+
+		cutCylinder(m2_hole_radius, self.gear_support_thickness,
+						x = self.motor.gearMountHolesPos,
+						y = self.motor.motorL + self.motor.gearboxSize,
+						z = self.base_thickness + self.motor.motorH / 2,
+						dir=Y)
+
+		cutCylinder(m2_hole_radius, self.gear_support_thickness,
+						x = -self.motor.gearMountHolesPos,
+						y = self.motor.motorL + self.motor.gearboxSize,
+						z = self.base_thickness + self.motor.motorH / 2,
+						dir=Y)
+
+		cutCylinder(self.motor.shaftR + 0.3, self.gear_support_thickness,
+						x = 0,
+						y = self.motor.motorL + self.motor.gearboxSize,
+						z = self.base_thickness + self.motor.motorH / 2,
+						dir=Y)
+
+		cutCylinder(self.motor.shaftSupportR + 0.2, self.motor.shaftSupportH,
+						x = 0,
+						y = self.motor.motorL + self.motor.gearboxSize,
+						z = self.base_thickness + self.motor.motorH / 2,
+						dir=Y)
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = base + m3_hole_radius)
+
+		fuseBox(m3_hole_radius, m3_hole_radius * 2 + min_base * 2, self.base_thickness + self.motor.motorH / 2,
+						x = width / 2 - (m3_hole_radius * 2 + min_base),
+						y = base - min_base)
+
+		fuseBox(m3_hole_radius, m3_hole_radius * 2 + min_base * 2, self.base_thickness + self.motor.motorH / 2,
+						x = -width / 2 + (m3_hole_radius + min_base),
+						y = base - min_base)
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = base + m3_hole_radius)
+
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseBox((m3_hole_radius + min_base) * 2, base + m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - (min_base+ m3_hole_radius) * 2,
+						y= self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseBox((m3_hole_radius + min_base) * 2, base + m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2,
+						y= self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = base + m3_hole_radius)
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = base + m3_hole_radius)
+
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+
+class MotorTopSupport(BaseElement):
+
+	def __init__(self, motor, base_thickness = base):
+		self.motor = motor
+		self.base_thickness = base_thickness
+
+	def draw(self):
+
+		width = self.motor.motorW + min_base * 4 + m3_hole_radius * 4
+
+		fuseBox(self.motor.motorW + min_base * 2, self.motor.motorL, self.base_thickness + self.motor.motorH / 2, x = -(self.motor.motorW + min_base * 2) / 2)
+		cutCylinder(self.motor.motorW / 2, self.motor.motorL, z=self.base_thickness + self.motor.motorH / 2, dir=Y)
+		fuseBox(width, self.motor.motorL + self.motor.gearboxSize, self.base_thickness, x = -width / 2)
+
+		cutBox(min_base + m3_hole_radius * 2, base + m3_hole_radius, self.base_thickness, x = - width / 2)
+		cutBox(min_base + m3_hole_radius * 2, base + m3_hole_radius, self.base_thickness, x = width / 2 - (min_base + m3_hole_radius * 2))
+
+
+		fuseBox(self.motor.motorW / 2 - self.motor.gearSupportX, self.motor.gearboxSize - self.motor.gearPlateThickness * 2, self.motor.motorH / 2 - self.motor.gearSupportY,
+						x = self.motor.gearSupportX,
+						y = self.motor.motorL + self.motor.gearPlateThickness,
+						z = self.base_thickness)
+		
+		cutCylinder(self.motor.gearSupportR, self.motor.gearboxSize,
+						x= self.motor.gearSupportX,
+						y = self.motor.motorL,
+						z = self.motor.motorH / 2 - self.motor.gearSupportY + self.base_thickness,
+						dir = Y)
+
+		cutBox(self.motor.motorW / 2 - self.motor.gearSupportX, self.motor.gearPlateThickness, self.motor.motorH / 2 - self.motor.gearSupportY,
+						x = self.motor.gearSupportX,
+						y= self.motor.motorL + self.motor.gearPlatePos2 - self.motor.gearPlateThickness,
+						z = self.base_thickness)
+
+		fuseBox(min_base, self.motor.gearboxSize, self.base_thickness + self.motor.motorH / 2,
+						x = self.motor.motorW / 2,
+						y = self.motor.motorL)
+
+		fuseBox(min_base, self.motor.gearboxSize, self.base_thickness + self.motor.motorH / 2,
+						x = -self.motor.motorW / 2 - min_base,
+						y = self.motor.motorL)
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = base + m3_hole_radius)
+
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = base + m3_hole_radius)
+
+		fuseBox(m3_hole_radius, m3_hole_radius * 2 + min_base * 2, self.base_thickness + self.motor.motorH / 2,
+						x = width / 2 - (m3_hole_radius * 2 + min_base),
+						y = base - min_base)
+
+		fuseBox(m3_hole_radius, m3_hole_radius * 2 + min_base * 2, self.base_thickness + self.motor.motorH / 2,
+						x = -width / 2 + (m3_hole_radius + min_base),
+						y = base - min_base)
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseBox((m3_hole_radius + min_base) * 2, base + m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - (min_base+ m3_hole_radius) * 2,
+						y= self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseCylinder(m3_hole_radius + min_base, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		fuseBox((m3_hole_radius + min_base) * 2, base + m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2,
+						y= self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = base + m3_hole_radius)
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = base + m3_hole_radius)
+
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= width / 2 - min_base- m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+		cutCylinder(m3_hole_radius, self.base_thickness + self.motor.motorH / 2,
+						x= -width / 2 + min_base + m3_hole_radius,
+						y = self.motor.motorL + self.motor.gearboxSize - (base + m3_hole_radius))
+
+class MotorBottomSupport(MotorTopSupport):
+
+	def __init__(self, motor, gear_support_thickness, base_thickness = base):
+		super().__init__(motor, base_thickness)
+		self.gear_support_thickness = gear_support_thickness
+
+	def draw(self):
+		super().draw()
+		
+		width = self.motor.motorW + min_base * 4 + m3_hole_radius * 4
+
+		fuseBox(width, self.gear_support_thickness, self.base_thickness + self.motor.motorH,
+			 x = -width / 2,
+			 y = self.motor.motorL + self.motor.gearboxSize)
+
+		fuseBox(self.motor.gearSupportX - self.motor.gearSupportR - 1 + self.motor.motorW / 2,
+			    self.motor.gearPlatePos2 - self.motor.gearPlateThickness * 2,
+				self.motor.gearSupportR * 2,
+				-self.motor.motorW / 2, self.motor.motorL + self.motor.gearPlateThickness, self.base_thickness)
+
+
+class GripperElement(BaseElement):
+
+	def __init__(self):
+
+		base_thickness = base
+
+		self.motor = GearMotor()
+		self.coupler = MotorCoupler()
+		self.motorSupport = MotorBottomSupport(self.motor, self.motor.shaftH - self.coupler.shaftDeep - 1, base_thickness)
+		self.motorTopSupport = MotorTopSupport(self.motor, base_thickness)
+
+	def draw(self):
+
+		motorZ = self.coupler.H1 + self.coupler.H2 + self.motor.gearboxSize + self.motor.shaftH - self.coupler.shaftDeep
+
+		self.coupler.show()
+		endShape()
+
+		self.motor.show()
+		move(z=motorZ)
+		endShape()
+
+		self.motorSupport.show()
+		rotate(0,0,0, X, -90)
+		move(y =-self.motorSupport.base_thickness-self.motorSupport.motor.motorH / 2,
+             z = motorZ + self.motorSupport.motor.motorL)
+		endShape()
+
+		self.motorTopSupport.show()
+		rotate(0,0,0, X, 90)
+		rotate(0,0,0, Y, 180)
+		move(y = self.motorSupport.base_thickness + self.motorSupport.motor.motorH / 2,
+			 z = motorZ + self.motorSupport.motor.motorL)
+
+motor = GearMotor()
+#motor.show()
+#MotorCoupler().show()
+#MotorTopSupport(motor, base).show()
+#MotorBottomSupport(motor, base).show()
+
+GripperElement().show()
+
+
+"""
+def update():
+	print("aaa")
+
+from PySide import QtCore
+timer = QtCore.QTimer()
+# connect timer event to function "update"
+timer.timeout.connect( update )
+# start the timer to trigger "update" every 10 ms
+timer.start( 100 )
+"""

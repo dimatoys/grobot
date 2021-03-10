@@ -1,0 +1,735 @@
+from math import *
+import Part
+from FreeCAD import Base
+
+X = Base.Vector(1, 0, 0)
+Y = Base.Vector(0, 1, 0)
+Z = Base.Vector(0, 0, 1)
+O = Base.Vector(0, 0, 0)
+
+# min strong deepness
+base = 3.0
+min_z = 0.3
+strong_base = base * 1.5
+min_base = 2.0
+border = 0.5
+
+# holes sizes for bolts
+m3_hole_radius = 1.8
+m3_head_radius = 3.0
+m3_head_high = 3.5
+
+m2_head_radius = 2.0
+m2_hole_radius = 1.3
+m2_head_high = 2.0
+
+m4_hole_radius = 2.5
+m4_head_radius = 4.0
+m4_head_high   = 5.0
+
+m6_hole_radius = 3.5
+
+wire = 1.5
+
+g_Shape = None
+g_Stack = []
+
+def Show(shape=None):
+	global g_Shape
+	if shape is None:
+		shape = g_Shape
+
+	for obj in App.ActiveDocument.Objects:
+		App.ActiveDocument.removeObject(obj.Name)
+	Part.show(shape)
+	Gui.ActiveDocument.ActiveView.setAxisCross(True)
+	print("Done")
+
+def fuseBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = box if g_Shape is None else g_Shape.fuse(box)
+
+
+def cutBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = g_Shape.cut(box)
+
+def commonBox(sx, sy, sz, x = 0, y = 0, z = 0):
+	global g_Shape
+	box = Part.makeBox(sx,sy,sz, X * x + Y * y + Z * z)
+	g_Shape = g_Shape.common(box)
+
+def fuseCylinder(r, h, x = 0, y = 0, z = 0, dir = Z, angle=360):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir, angle)
+	g_Shape = cylinder if g_Shape is None else g_Shape.fuse(cylinder)
+
+def cutCylinder(r, h, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir)
+	g_Shape = g_Shape.cut(cylinder)
+
+def commonCylinder(r, h, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cylinder = Part.makeCylinder(r, h, X * x + Y * y + Z * z, dir)
+	g_Shape = g_Shape.common(cylinder)
+
+def fuseCone(h, r1, r2=0, x = 0, y = 0, z = 0, dir = Z):
+	global g_Shape
+	cone = Part.makeCone(r1, r2, h, X * x + Y * y + Z * z, dir)
+	g_Shape = cone if g_Shape is None else g_Shape.fuse(cone)
+
+def transform(m):
+	global g_Shape
+	g_Shape = g_Shape.transformGeometry(m)
+
+def mirrorX():
+	m = Base.Matrix()
+	m.A11 = -1		
+	transform(m)
+
+def mirrorY():
+	m = Base.Matrix()
+	m.A22 = -1		
+	transform(m)
+
+def mirrorZ():
+	m = Base.Matrix()
+	m.A33 = -1		
+	transform(m)
+
+def rotate(x, y, z, axis, angle):
+	global g_Shape
+	g_Shape.rotate(X * x + Y * y + Z * z, axis, angle)
+
+def move(x=0, y=0, z=0):
+	global g_Shape
+	g_Shape.translate(X * x + Y * y + Z * z)
+
+def push():
+	global g_Shape
+	global g_Stack
+	g_Stack.append(g_Shape)
+	g_Shape = None
+
+def pop():
+	global g_Shape
+	global g_Stack
+	old = g_Stack.pop()
+	if old is not None:
+		g_Shape = g_Shape.fuse(old)
+
+
+class BaseElement(object):
+	def show(self):
+		self.draw()
+		Show()
+
+
+class RDS3225(BaseElement):
+
+	WIDTH = 20.0
+	HEIGHT = 40.0
+	HIGH = 40.0
+
+	MOTOR_TO_SHAFT = 7.0
+	SHAFT_X = 0
+	SHAFT_Y = 30.0
+	SHAFT_CUT_R = 12
+
+	DYNAMIC_R = 30.0
+
+	FRONT_SHAFT_HIGH = 7.0
+	BACK_SHAFT_HIGH = 5.0
+	BACK_SHAFT_HIGH_WITH_SPACE = 7.0
+
+
+	BETWEEN_SHAFTS = HIGH + FRONT_SHAFT_HIGH + BACK_SHAFT_HIGH_WITH_SPACE
+
+	FRONT_SUPPORT_HOLE1_X = 0
+	FRONT_SUPPORT_HOLE1_Y = 3.0
+	FRONT_SUPPORT_HOLE2_X = 7.0
+	FRONT_SUPPORT_HOLE2_Y = 10.0
+	FRONT_SUPPORT_HOLE3_X = -7.0
+	FRONT_SUPPORT_HOLE3_Y = 10.0
+
+	BACK_SUPPORT_HOLE1_X = 7.5
+	BACK_SUPPORT_HOLE1_Y = 2.5
+	BACK_SUPPORT_HOLE2_X = -7.5
+	BACK_SUPPORT_HOLE2_Y = 2.5
+	BACK_SUPPORT_HOLE3_X = 7.5
+	BACK_SUPPORT_HOLE3_Y = 17.5
+	BACK_SUPPORT_HOLE4_X = -7.5
+	BACK_SUPPORT_HOLE4_Y = 17.5
+
+class MakeBlocks(BaseElement):
+	
+	HOLES_INTERVAL = 16.0
+
+
+class SensorButton(BaseElement):
+
+	HIGH             = 6.0
+	WIDTH            = 20.0
+	HOLE1            = 5.0
+	HOLE2            = 15.0
+
+
+	HOLES_TO_SENSE    = 10.0
+	HOLES_TO_CONTACTS = 8.0
+
+
+class SensorSupport(BaseElement):
+	def __init__(self, support_length):
+
+		self.GRABBER_HIGH      = 12.0 # >= self.BUTTON_HIGH + base * 2
+		self.GRABBER_LENGTH    = 80.0
+		self.GRABBER_DEEP      = 8.0
+		self.GRABBER_THICKNESS = min_base
+
+		self.GRABBER_R_INT  = self.GRABBER_DEEP / 2 + self.GRABBER_LENGTH * self.GRABBER_LENGTH / 8 / self.GRABBER_DEEP
+		self.GRABBER_R_EXT  = self.GRABBER_R_INT + self.GRABBER_THICKNESS
+
+		self.BUTTON_HIGH = 6.0
+		self.HOLE1_X = 21.0
+		self.HOLE1_Y = 0.0
+		self.HOLE2_X = 21.0
+		self.HOLE2_Y = 10.0
+
+		self.SUPPORT_LENGTH = support_length
+		self.SUPPORT_HIGH   = strong_base * 2
+		self.SUPPORT_WIDTH  = strong_base * 2
+		self.SUPPORT_X       = self.HOLE1_X - min_base - m2_hole_radius - strong_base
+
+	def draw(self):
+
+		a = self.GRABBER_R_INT - self.GRABBER_DEEP
+		sx = self.SUPPORT_X + strong_base
+		sy = -self.GRABBER_LENGTH / 2 - self.GRABBER_THICKNESS
+
+		fuseCylinder(self.GRABBER_R_EXT, self.GRABBER_HIGH, -a)
+		fuseBox(sx + strong_base, self.GRABBER_THICKNESS, self.GRABBER_HIGH, y=sy)
+		fuseBox(min_base, self.GRABBER_LENGTH / 2 + self.HOLE1_Y - 10, base + wire * 2, x = sx + strong_base - min_base, y = sy)
+		fuseBox(min_base, self.GRABBER_LENGTH / 2 + self.HOLE1_Y - 10, base + wire * 2, x = sx - min_base, y = sy + strong_base)
+		fuseBox(strong_base * 2, strong_base, base, x= sx -strong_base, y = sy)
+		cutCylinder(self.GRABBER_R_INT, self.GRABBER_HIGH, -a)
+		cutBox(self.GRABBER_R_EXT * 2, self.GRABBER_R_EXT * 2, self.GRABBER_HIGH, x = - self.GRABBER_R_EXT * 2, y = - self.GRABBER_R_EXT)
+		cutBox(self.GRABBER_DEEP,self.GRABBER_R_EXT, self.GRABBER_HIGH, y = self.GRABBER_LENGTH / 2)
+		cutBox(sx, self.GRABBER_THICKNESS * 2, self.GRABBER_HIGH, y = sy - self.GRABBER_THICKNESS * 2)
+		cutBox(strong_base - min_base, self.GRABBER_THICKNESS, wire * 2, x = sx - strong_base + min_base, y=sy, z=strong_base)
+
+
+		button_support_width  = self.HOLE2_X - self.HOLE1_X + min_base * 2 + m2_hole_radius * 2
+		button_support_height = self.HOLE2_Y - self.HOLE1_Y + min_base * 2 + m2_hole_radius * 2
+		fuseBox(strong_base, self.GRABBER_LENGTH / 2, base, x = sx, y = sy)
+		fuseBox(button_support_width, button_support_height, (self.GRABBER_HIGH - self.BUTTON_HIGH) / 2,
+                x = self.HOLE1_X - min_base - m2_hole_radius,
+				y = self.HOLE1_Y - min_base - m2_hole_radius)
+		cutCylinder(m2_hole_radius, self.GRABBER_HIGH, self.HOLE1_X, self.HOLE1_Y, 0)
+		cutCylinder(m2_hole_radius, self.GRABBER_HIGH, self.HOLE2_X, self.HOLE2_Y, 0)
+
+		fuseBox(self.SUPPORT_WIDTH - strong_base, self.SUPPORT_LENGTH, self.SUPPORT_HIGH, x = self.SUPPORT_X + strong_base, y = sy - self.SUPPORT_LENGTH + self.GRABBER_THICKNESS)
+		fuseBox(self.SUPPORT_WIDTH, self.SUPPORT_LENGTH, strong_base, x = self.SUPPORT_X, y = sy - self.SUPPORT_LENGTH + self.GRABBER_THICKNESS)
+		fuseBox(min_base, self.SUPPORT_LENGTH, self.SUPPORT_HIGH, x = self.SUPPORT_X, y = sy - self.SUPPORT_LENGTH + self.GRABBER_THICKNESS)
+
+		move(0, self.SUPPORT_LENGTH + self.GRABBER_LENGTH / 2)
+
+class SensorSupport2(BaseElement):
+	def __init__(self, support_length):
+
+		self.GRABBER_HIGH              = 12.0 # >= self.BUTTON_HIGH + base * 2
+		self.GRABBER_DYNAMIC_LENGTH    = 80.0
+
+		self.BUTTON_HIGH = 6.0
+		self.HOLE1_X     = 21.0
+		self.HOLE1_Y     = 0.0
+		self.HOLE2_X     = 21.0
+		self.HOLE2_Y     = 10.0
+
+		self.SUPPORT_LENGTH  = support_length
+		self.SUPPORT_HIGH    = strong_base * 2
+		self.SUPPORT_WIDTH   = strong_base * 2
+		self.SUPPORT_X       = self.HOLE1_X - min_base - m2_hole_radius - strong_base
+
+		self.SENSOR_SHIFT  = 25.0
+
+		self.WIRES_HIGH  = 4.5
+		self.WIRES_WIDTH = 2.5
+		self.WIRES_TURN = self.WIRES_WIDTH * 3
+
+
+	def draw(self):
+
+		fuseBox(base, self.GRABBER_DYNAMIC_LENGTH, self.GRABBER_HIGH, y=self.SUPPORT_LENGTH - self.GRABBER_DYNAMIC_LENGTH)
+		fuseBox(min_base, min_base * 2, self.GRABBER_HIGH, x = base - min_base, y=self.SUPPORT_LENGTH - self.GRABBER_DYNAMIC_LENGTH - min_base * 2)
+		fuseBox(self.SUPPORT_X + self.SUPPORT_WIDTH - (base - min_base), min_base, self.GRABBER_HIGH, x = base - min_base, y=self.SUPPORT_LENGTH - self.GRABBER_DYNAMIC_LENGTH - min_base * 2)
+
+		fuseBox(self.SUPPORT_WIDTH, self.SUPPORT_LENGTH - self.SENSOR_SHIFT, self.SUPPORT_HIGH, x = self.SUPPORT_X, y = 0)
+		cutBox(self.WIRES_WIDTH, self.SUPPORT_LENGTH - self.SENSOR_SHIFT, self.WIRES_HIGH, x = self.SUPPORT_X + min_base, y = 0, z = self.SUPPORT_HIGH - self.WIRES_HIGH)
+
+		buttonSupportBase = (self.GRABBER_HIGH - SensorButton.HIGH) / 2
+
+		fuseBox(m2_hole_radius + strong_base, SensorButton.WIDTH, buttonSupportBase, x = self.SUPPORT_X - strong_base, y = self.SUPPORT_LENGTH - SensorButton.WIDTH - self.SENSOR_SHIFT)
+
+		cutCylinder(m2_hole_radius, buttonSupportBase, x = base + SensorButton.HOLES_TO_SENSE , y = self.SUPPORT_LENGTH - SensorButton.HOLE1 - self.SENSOR_SHIFT)
+		cutCylinder(m2_hole_radius, buttonSupportBase, x = base + SensorButton.HOLES_TO_SENSE , y = self.SUPPORT_LENGTH - SensorButton.HOLE2 - self.SENSOR_SHIFT)
+		cutBox(self.SUPPORT_X + self.SUPPORT_WIDTH, SensorButton.WIDTH, self.SUPPORT_HIGH - buttonSupportBase,
+					x = base, y = self.SUPPORT_LENGTH - SensorButton.WIDTH - self.SENSOR_SHIFT, z = buttonSupportBase)
+		cutBox(self.SUPPORT_WIDTH - min_base - self.WIRES_WIDTH, self.WIRES_TURN, self.WIRES_HIGH,
+					x = self.SUPPORT_X + min_base + self.WIRES_WIDTH, y = self.SUPPORT_LENGTH - SensorButton.WIDTH - self.WIRES_TURN - self.SENSOR_SHIFT, z = self.SUPPORT_HIGH - self.WIRES_HIGH)
+
+class MotorShaftConnector(BaseElement):
+	HOLES_R   = 7.0
+		
+	R = HOLES_R + m3_head_radius + min_base
+
+	def __init__(self, thickness = 3.5, x = 0, y = 0, orient="up", screw=8, stub="off"):
+		
+		self.THICKNESS = thickness
+		self.X         = x
+		self.Y         = y
+		self.ORIENT    = orient
+		self.STUB      = stub
+
+		self.BASE      = screw - 4.5
+
+
+	def draw(self):
+		fuseCylinder(self.R, self.THICKNESS, x= self.X, y = self.Y)
+		cutCylinder(m3_hole_radius, self.THICKNESS, x= self.X + self.HOLES_R, y = self.Y)
+		cutCylinder(m3_hole_radius, self.THICKNESS, x= self.X - self.HOLES_R, y = self.Y)
+		cutCylinder(m3_hole_radius, self.THICKNESS, x= self.X, y = self.Y + self.HOLES_R)
+		cutCylinder(m3_hole_radius, self.THICKNESS, x= self.X, y = self.Y - self.HOLES_R)
+
+		if self.STUB != "off":
+			if self.ORIENT == "up":
+				cutCylinder(m3_head_radius, m3_head_high, x= self.X, y = self.Y, z = self.THICKNESS - m3_head_high)
+			else:
+				cutCylinder(m3_head_radius, m3_head_high, x= self.X, y = self.Y)
+		else:
+			cutCylinder(m3_head_radius, self.THICKNESS, x= self.X, y = self.Y)
+
+
+		if self.THICKNESS > self.BASE:
+			if self.ORIENT == "up":
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X + self.HOLES_R, y = self.Y, z = -self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X - self.HOLES_R, y = self.Y, z = -self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X, y = self.Y + self.HOLES_R, z = -self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X, y = self.Y - self.HOLES_R, z = -self.BASE)
+			else:
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X + self.HOLES_R, y = self.Y, z = self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X - self.HOLES_R, y = self.Y, z = self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X, y = self.Y + self.HOLES_R, z = self.BASE)
+				cutCylinder(m3_head_radius, self.THICKNESS, x= self.X, y = self.Y - self.HOLES_R, z = self.BASE)
+
+class MotorFrontSupport(BaseElement):
+	HOLE1_X = RDS3225.FRONT_SUPPORT_HOLE1_X
+	HOLE1_Y = RDS3225.FRONT_SUPPORT_HOLE1_Y
+	HOLE2_X = RDS3225.FRONT_SUPPORT_HOLE2_X
+	HOLE2_Y = RDS3225.FRONT_SUPPORT_HOLE2_Y
+	HOLE3_X = RDS3225.FRONT_SUPPORT_HOLE3_X
+	HOLE3_Y = RDS3225.FRONT_SUPPORT_HOLE3_Y
+
+	WIDTH  = HOLE2_X - HOLE3_X + m2_hole_radius * 2 + min_base * 2
+	HEIGHT = 15.0
+
+	def __init__(self, thickness = 3.0, x = 0, y = 0, orient="up", screw = 6.0):	
+		
+		self.THICKNESS = thickness
+		self.X         = x
+		self.Y         = y
+		self.ORIENT    = orient
+
+		self.BASE = screw - 3.0
+
+
+	def draw(self):
+		fuseBox(self.WIDTH, self.HEIGHT, self.THICKNESS, x = self.X - self.WIDTH / 2, y=self.Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + self.HOLE1_X, y = self.Y + self.HOLE1_Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + self.HOLE2_X, y = self.Y + self.HOLE2_Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + self.HOLE3_X, y = self.Y + self.HOLE3_Y)
+		if self.THICKNESS > self.BASE:
+			if self.ORIENT == "up":
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE1_X, y = self.Y + self.HOLE1_Y, z = -self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE2_X, y = self.Y + self.HOLE2_Y, z = -self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE3_X, y = self.Y + self.HOLE3_Y, z = -self.BASE)
+			else:
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE1_X, y = self.Y + self.HOLE1_Y, z = self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE2_X, y = self.Y + self.HOLE2_Y, z = self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + self.HOLE3_X, y = self.Y + self.HOLE3_Y, z = self.BASE)
+
+class MotorBackSupport(BaseElement):
+
+	WIDTH  = RDS3225.BACK_SUPPORT_HOLE1_X - RDS3225.BACK_SUPPORT_HOLE2_X + m2_hole_radius * 2 + min_base * 2
+	HEIGHT = RDS3225.BACK_SUPPORT_HOLE3_Y - RDS3225.BACK_SUPPORT_HOLE1_Y + m2_hole_radius * 2 + min_base * 2
+
+	def __init__(self, thickness = 3.0, x = 0, y = 0, orient="up", screw = 6.0):	
+		
+		self.THICKNESS = thickness
+		self.X         = x
+		self.Y         = y
+		self.ORIENT    = orient
+
+		self.BASE = screw - 3.0
+
+	def draw(self):
+		fuseBox(self.WIDTH, self.HEIGHT, self.THICKNESS, x = self.X - self.WIDTH / 2, y=self.Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE1_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE1_Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE2_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE2_Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE3_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE3_Y)
+		cutCylinder(m2_hole_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE4_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE4_Y)
+		if self.THICKNESS > self.BASE:
+			if self.ORIENT == "up":
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE1_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE1_Y, z = -self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE2_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE2_Y, z = -self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE3_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE3_Y, z = -self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE4_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE4_Y, z = -self.BASE)
+			else:
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE1_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE1_Y, z = self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE2_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE2_Y, z = self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE3_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE3_Y, z = self.BASE)
+				cutCylinder(m2_head_radius, self.THICKNESS, x = self.X + RDS3225.BACK_SUPPORT_HOLE4_X, y = self.Y + RDS3225.BACK_SUPPORT_HOLE4_Y, z = self.BASE)
+
+
+
+class RightHand(BaseElement):
+	def __init__(self):
+		self.HAND_LENGTH = 180.0
+
+		#self.SENSOR_SUPPORT  = SensorSupport(self.HAND_LENGTH - 80.0)
+		self.SENSOR_SUPPORT  = SensorSupport2(self.HAND_LENGTH)
+
+
+		self.SHAFT_X = self.SENSOR_SUPPORT.SUPPORT_X + self.SENSOR_SUPPORT.SUPPORT_WIDTH - MotorShaftConnector.R
+
+		self.SHAFT_CONNECTOR = MotorShaftConnector(x = self.SHAFT_X,
+                                                  thickness = self.SENSOR_SUPPORT.SUPPORT_HIGH)
+
+	def draw(self):
+		self.SENSOR_SUPPORT.draw()
+		self.SHAFT_CONNECTOR.draw()
+		
+
+class LeftHand(BaseElement):
+	def __init__(self, rightHand, betweenHands = 10.0, drawRight = False):
+		self.HAND_LENGTH = 180.0
+
+		self.RIGHT_HAND = rightHand
+		self.BETWEEN_HANDS = betweenHands
+
+		self.DRAW_RIGHT = drawRight
+
+		self.MOTOR_SUPPORT_X = self.RIGHT_HAND.SHAFT_X + self.BETWEEN_HANDS
+		self.MOTOR_SUPPORT_Y = -RDS3225.SHAFT_Y
+
+		self.SUPPORT_TO_SHAFT = 5.0
+
+
+		#self.SENSOR_SUPPORT  = SensorSupport(self.HAND_LENGTH - 80.0 - self.MOTOR_SUPPORT_Y)
+		self.SENSOR_SUPPORT  = SensorSupport2(self.HAND_LENGTH - self.MOTOR_SUPPORT_Y)
+		self.MOTOR_SUPPORT = MotorFrontSupport(thickness = RDS3225.MOTOR_TO_SHAFT + self.RIGHT_HAND.SENSOR_SUPPORT.SUPPORT_HIGH,
+                                               x = self.MOTOR_SUPPORT_X,
+											   y = self.MOTOR_SUPPORT_Y,
+											   screw = 16)
+
+		self.SHAFT_CONNECTOR = MotorShaftConnector(thickness = strong_base * 3, screw = 16, stub="on")
+		self.SHAFT_X = self.MOTOR_SUPPORT_X + self.MOTOR_SUPPORT.WIDTH / 2 + self.SUPPORT_TO_SHAFT
+		self.SHAFT_Z = self.MOTOR_SUPPORT.THICKNESS + m3_head_radius
+
+		self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES     = m3_hole_radius
+		self.MOTOR_TOP_SUPPORT_CONNECTOR_THICKNESS = strong_base
+		self.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT    = base + base + self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES * 2 + base
+		self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLE_POS  = self.MOTOR_SUPPORT.WIDTH /2 - base - self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES
+
+	def draw(self, drawRight=False):
+		self.SENSOR_SUPPORT.draw()
+		move(y=self.MOTOR_SUPPORT_Y)
+		mirrorX()
+
+		fuseBox(self.MOTOR_SUPPORT_X + self.SUPPORT_TO_SHAFT + self.MOTOR_SUPPORT.WIDTH / 2 + self.SENSOR_SUPPORT.SUPPORT_X, self.MOTOR_SUPPORT.HEIGHT,strong_base,
+				x = -self.SENSOR_SUPPORT.SUPPORT_X, y = self.MOTOR_SUPPORT_Y)
+		fuseBox(self.MOTOR_SUPPORT_X - self.MOTOR_SUPPORT.WIDTH / 2 + self.SENSOR_SUPPORT.SUPPORT_X + strong_base, strong_base, self.SENSOR_SUPPORT.SUPPORT_HIGH,
+				x = -self.SENSOR_SUPPORT.SUPPORT_X - strong_base, y = self.MOTOR_SUPPORT_Y)
+		fuseBox(self.MOTOR_SUPPORT_X + self.MOTOR_SUPPORT.WIDTH / 2 + self.SENSOR_SUPPORT.SUPPORT_X + self.SUPPORT_TO_SHAFT, strong_base, self.SENSOR_SUPPORT.SUPPORT_HIGH,
+				x = -self.SENSOR_SUPPORT.SUPPORT_X, y = self.MOTOR_SUPPORT_Y + self.MOTOR_SUPPORT.HEIGHT - strong_base)
+		fuseBox(self.SUPPORT_TO_SHAFT, strong_base, self.MOTOR_SUPPORT.THICKNESS,
+				x = self.MOTOR_SUPPORT_X + self.MOTOR_SUPPORT.WIDTH / 2, y = self.MOTOR_SUPPORT_Y)
+		fuseBox(self.SUPPORT_TO_SHAFT, strong_base, self.MOTOR_SUPPORT.THICKNESS,
+				x = self.MOTOR_SUPPORT_X + self.MOTOR_SUPPORT.WIDTH / 2, y = self.MOTOR_SUPPORT_Y + self.MOTOR_SUPPORT.HEIGHT - strong_base)
+		
+		cutBox(self.MOTOR_SUPPORT_X - self.MOTOR_SUPPORT.WIDTH / 2 + self.SENSOR_SUPPORT.SUPPORT_X, self.MOTOR_SUPPORT.HEIGHT - strong_base * 2, self.SENSOR_SUPPORT.SUPPORT_HIGH,
+				x = -self.SENSOR_SUPPORT.SUPPORT_X - strong_base, y = self.MOTOR_SUPPORT_Y + strong_base, z = strong_base)
+		cutBox(wire * 2, strong_base, wire, x = self.MOTOR_SUPPORT_X - self.MOTOR_SUPPORT.WIDTH / 2 - wire * 2, y=self.MOTOR_SUPPORT_Y, z = strong_base * 2 - wire)
+
+		fuseBox(self.MOTOR_SUPPORT.WIDTH,self.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT, self.MOTOR_TOP_SUPPORT_CONNECTOR_THICKNESS,
+			x=self.MOTOR_SUPPORT_X - self.MOTOR_SUPPORT.WIDTH /2, y = self.MOTOR_SUPPORT_Y - self.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT)
+		cutCylinder(self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES, self.MOTOR_TOP_SUPPORT_CONNECTOR_THICKNESS,
+                    x = self.MOTOR_SUPPORT_X - self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLE_POS,
+					y = self.MOTOR_SUPPORT_Y - self.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT + base + self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES)
+		cutCylinder(self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES, self.MOTOR_TOP_SUPPORT_CONNECTOR_THICKNESS,
+                    x = self.MOTOR_SUPPORT_X + self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLE_POS,
+					y = self.MOTOR_SUPPORT_Y - self.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT + base + self.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES)
+
+
+		self.MOTOR_SUPPORT.draw()
+
+		push()
+
+		fuseCylinder(self.SHAFT_CONNECTOR.R + strong_base , strong_base * 2)
+		fuseBox(self.SHAFT_Z ,(self.SHAFT_CONNECTOR.R + strong_base) * 2, strong_base * 2, y = -(self.SHAFT_CONNECTOR.R + strong_base))
+		self.SHAFT_CONNECTOR.draw()
+		fuseBox(self.SHAFT_Z - m3_head_radius, self.MOTOR_SUPPORT.HEIGHT, self.SHAFT_CONNECTOR.THICKNESS,
+			    x = m3_head_radius , y = -self.MOTOR_SUPPORT.HEIGHT / 2)
+		rotate(0,0,0, Y, 90)
+		move(self.SHAFT_X,self.MOTOR_SUPPORT_Y + self.MOTOR_SUPPORT.HEIGHT / 2, self.SHAFT_Z)
+		pop()
+
+		if self.DRAW_RIGHT:	
+			push()
+			self.RIGHT_HAND.draw()
+			move(x=self.BETWEEN_HANDS)
+			pop()
+		
+class GripperMotorSupport(BaseElement):
+
+	def __init__(self, leftHand, thickness = base):
+
+		self.LEFT_HAND = leftHand		
+		self.THICKNESS = thickness	
+
+		self.HIGH = self.THICKNESS + RDS3225.HIGH + self.LEFT_HAND.MOTOR_SUPPORT.THICKNESS - self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_THICKNESS
+
+		self.MOTOR_BACK_SUPPORT = MotorBackSupport(thickness = self.THICKNESS)
+
+	def draw(self):
+
+		self.MOTOR_BACK_SUPPORT.draw()
+		rotate(0,0,0,Y, 90)
+		move(y = self.THICKNESS, z=self.MOTOR_BACK_SUPPORT.WIDTH/2)
+
+		fuseBox(self.HIGH, self.THICKNESS, self.MOTOR_BACK_SUPPORT.WIDTH)
+		fuseBox(self.THICKNESS, self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT - self.THICKNESS, self.MOTOR_BACK_SUPPORT.WIDTH,
+				x= self.HIGH - self.THICKNESS, y = -(base * 2 + m3_hole_radius * 2))
+
+		cutCylinder(self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES, self.THICKNESS,
+					x = self.HIGH - self.THICKNESS,
+					y = -(self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT - self.THICKNESS - base - self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES),
+					z = self.MOTOR_BACK_SUPPORT.WIDTH / 2 + self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLE_POS,
+					dir = X)
+		cutCylinder(self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES, self.THICKNESS,
+					x = self.HIGH - self.THICKNESS,
+					y = -(self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HEIGHT - self.THICKNESS - base - self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLES),
+					z = self.MOTOR_BACK_SUPPORT.WIDTH / 2 - self.LEFT_HAND.MOTOR_TOP_SUPPORT_CONNECTOR_HOLE_POS,
+					dir = X)
+
+
+class VerticalMotorSupport(BaseElement):
+
+	def __init__(self, thickness = strong_base):
+
+		self.THICKNESS = thickness	
+
+		self.HIGH = self.THICKNESS + RDS3225.HIGH + self.THICKNESS + border * 2
+
+		self.MOTOR_FRONT_SUPPORT = MotorFrontSupport(thickness = self.THICKNESS)
+		self.MOTOR_BACK_SUPPORT = MotorBackSupport(thickness = self.THICKNESS)
+		self.SHAFT_CONNECTOR    = MotorShaftConnector(thickness = self.THICKNESS * 2,
+													  x = MotorShaftConnector.R,
+													  y = -(MotorShaftConnector.R + RDS3225.WIDTH / 2 + base),
+													  screw=12)
+
+	def draw(self):
+
+		self.MOTOR_BACK_SUPPORT.draw()
+		mirrorZ()
+		move(z=self.HIGH)
+		self.MOTOR_FRONT_SUPPORT.draw()
+		rotate(0,0,0,Y, 90)
+		move(y = self.THICKNESS, z=self.MOTOR_BACK_SUPPORT.WIDTH/2)
+
+		fuseBox(self.SHAFT_CONNECTOR.R * 2, -self.SHAFT_CONNECTOR.Y, self.SHAFT_CONNECTOR.THICKNESS,y = self.SHAFT_CONNECTOR.Y)
+		self.SHAFT_CONNECTOR.draw()
+
+		fuseBox(self.HIGH, self.THICKNESS, self.MOTOR_BACK_SUPPORT.WIDTH)
+
+class ShoulderMain(BaseElement):
+
+	SUPPORT_HOLE1 = border + strong_base + base + m4_hole_radius
+	SUPPORT_HOLE2 = RDS3225.DYNAMIC_R + strong_base + base + m4_hole_radius
+	
+
+	def __init__(self, length, thickness = strong_base * 2):
+
+		self.THICKNESS = thickness
+		self.LENGTH    = length
+
+		self.WIDTH = strong_base * 2 + base * 2 + m4_hole_radius * 2 + border
+
+		self.MOTOR_BACK_SUPPORT = MotorBackSupport(thickness = self.THICKNESS, screw=10.0)
+		self.SHAFT_CONNECTOR    = MotorShaftConnector(thickness = self.THICKNESS,
+									x = self.WIDTH / 2, y=self.LENGTH, orient="down", screw=12)
+
+	def draw(self):
+
+		fuseBox(self.WIDTH, self.LENGTH, self.THICKNESS)
+		fuseBox(strong_base, self.LENGTH - m3_head_radius - (self.WIDTH - strong_base * 2.5), self.THICKNESS + strong_base, y = self.WIDTH - strong_base * 2.5)
+		fuseBox(strong_base, self.LENGTH - m3_head_radius, self.THICKNESS + strong_base , x = self.WIDTH - strong_base)
+		self.SHAFT_CONNECTOR.draw()
+		fuseBox(self.WIDTH, base * 2 + m4_hole_radius * 2, self.THICKNESS + strong_base, y= self.LENGTH - self.SUPPORT_HOLE2 - (base + m4_hole_radius))
+		cutCylinder(m4_hole_radius, self.THICKNESS + strong_base, x= self.WIDTH / 2, y= self.LENGTH - (RDS3225.DYNAMIC_R + strong_base + base + m4_hole_radius))
+
+		rotate(0,0,0,Z, -135)
+		move(self.WIDTH / sqrt(2) - self.MOTOR_BACK_SUPPORT.WIDTH/2, 0 , 0)
+
+		fuseBox(self.MOTOR_BACK_SUPPORT.WIDTH, self.WIDTH / sqrt(2), self.THICKNESS,
+			x=-self.MOTOR_BACK_SUPPORT.WIDTH/2, y=-self.WIDTH / sqrt(2))
+
+		fuseBox(self.MOTOR_BACK_SUPPORT.WIDTH, self.WIDTH / sqrt(2) - border, self.THICKNESS + strong_base, x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2, y = - self.WIDTH / sqrt(2))
+		cutCylinder(m4_hole_radius, self.THICKNESS * 2, y = -self.SUPPORT_HOLE1)
+
+		self.MOTOR_BACK_SUPPORT.draw()
+		
+class HandMotorTopSupport(BaseElement):
+	def __init__(self, shoulder, thickness = strong_base, drawShoulder = False):
+		self.SHOULDER = shoulder
+		self.THICKNESS = thickness
+		self.DRAW_SHOULDER = drawShoulder
+
+		self.MOTOR_SUPPORT = MotorFrontSupport(thickness = self.THICKNESS, x = MotorFrontSupport.WIDTH / 2)
+
+	def draw(self):
+		self.MOTOR_SUPPORT.draw()
+		rotate(0, 0, 0, Y, -90)
+
+		fuseBox(self.THICKNESS, border, self.MOTOR_SUPPORT.WIDTH, x = -self.THICKNESS, y = -border)
+
+		fuseBox(RDS3225.HIGH - strong_base + self.THICKNESS, self.THICKNESS, self.MOTOR_SUPPORT.WIDTH, x = - (RDS3225.HIGH + self.THICKNESS) + strong_base, y = -self.THICKNESS - border)
+		fuseBox(self.THICKNESS, self.SHOULDER.SUPPORT_HOLE1 + m4_hole_radius + base - border, self.MOTOR_SUPPORT.WIDTH, x = -RDS3225.HIGH, y = - (self.SHOULDER.SUPPORT_HOLE1 + m4_hole_radius + base))
+		cutCylinder(m4_hole_radius, self.THICKNESS, x = -RDS3225.HIGH, y = -self.SHOULDER.SUPPORT_HOLE1, z = self.MOTOR_SUPPORT.WIDTH / 2, dir = X)
+
+		if self.DRAW_SHOULDER:
+			push()
+			self.SHOULDER.draw()
+			rotate(0, 0, 0, Y, 90)
+			move(x = -RDS3225.HIGH - self.THICKNESS  - self.SHOULDER.THICKNESS, z = self.MOTOR_SUPPORT.WIDTH / 2)
+			pop()
+		
+class ShoulderBackSupport(BaseElement):
+
+	def __init__(self, shoulderMain, thickness = strong_base, drawShoulder = False):
+		self.SHOULDER = shoulderMain
+		self.THICKNESS = thickness
+		self.DRAW_SHOULDER = drawShoulder
+
+		self.SHAFT_CONNECTOR = MotorShaftConnector(thickness = self.THICKNESS, x = MotorShaftConnector.R, y = MotorShaftConnector.R)
+
+	def draw(self):
+		fuseBox(MotorShaftConnector.R * 2, MotorShaftConnector.R + self.SHOULDER.SUPPORT_HOLE2 - m4_hole_radius - self.THICKNESS - base, self.THICKNESS)
+		self.SHAFT_CONNECTOR.draw()
+		# 39 from hole to hole
+		rotate(0,0,0,Y, -90)
+		fuseBox(RDS3225.BETWEEN_SHAFTS, self.THICKNESS, MotorShaftConnector.R * 2,
+			x = -RDS3225.BETWEEN_SHAFTS, y = MotorShaftConnector.R + self.SHOULDER.SUPPORT_HOLE2 - m4_hole_radius - self.THICKNESS - base)
+		fuseBox(self.THICKNESS, base * 2 + m4_hole_radius * 2, MotorShaftConnector.R * 2,
+			x = -RDS3225.BETWEEN_SHAFTS, y = MotorShaftConnector.R + self.SHOULDER.SUPPORT_HOLE2 - m4_hole_radius - base)
+
+		cutCylinder(m4_hole_radius, self.THICKNESS,
+			x = -RDS3225.BETWEEN_SHAFTS, y = MotorShaftConnector.R + self.SHOULDER.SUPPORT_HOLE2, z = MotorShaftConnector.R,
+			dir = X)
+
+		if self.DRAW_SHOULDER:
+			push()
+			self.SHOULDER.draw()
+			rotate(0, 0, 0, Y, -90)
+			rotate(0, 0, 0, X, 45)
+			move(x = -RDS3225.BETWEEN_SHAFTS,
+				 y = self.SHOULDER.LENGTH + self.SHOULDER.SHAFT_CONNECTOR.R + sqrt(2)+1,
+				 z = self.SHOULDER.WIDTH -1)
+			pop()
+
+class CameraSupport(BaseElement):
+
+	R     = 10.0
+	MIN_H = 4.0
+	HOLE_R = m4_hole_radius
+
+	def __init__(self, thickness = strong_base):
+		self.THICKNESS = thickness
+		self.SUPPORT_HIGH = self.MIN_H + self.THICKNESS
+		self.HOLE1 = self.THICKNESS + self.HOLE_R
+		self.HOLE2 = self.HOLE1 + self.HOLE_R + self.THICKNESS * 2 + self.HOLE_R
+		self.HIGH = self.SUPPORT_HIGH + m4_head_high + self.HOLE2 + self.HOLE_R + self.THICKNESS
+		
+
+	def draw(self):
+		fuseCylinder(self.R, self.HIGH)
+		cutCylinder(m4_hole_radius, self.SUPPORT_HIGH)
+
+		cutBox(self.R * 2, self.R * 2, self.HIGH, x = -m4_head_radius, y = -self.R, z = self.SUPPORT_HIGH)
+
+		cutCylinder(m4_hole_radius, self.R, x = -self.R, z = self.SUPPORT_HIGH + m4_head_high + self.HOLE1, dir=X)
+		cutCylinder(m4_hole_radius, self.R, x = -self.R, z = self.SUPPORT_HIGH + m4_head_high + self.HOLE2, dir=X)
+
+class ShoulderMotorSupport(BaseElement):
+
+	def __init__(self, cameraSupport, thickness = strong_base, connectionDistance = m4_head_high, toCamera= 130.0):
+
+		self.CAMERA_SUPPORT = cameraSupport
+		self.THICKNESS = thickness
+		self.CONNECTION_DISTANCE = connectionDistance
+		self.TO_CAMERA = toCamera
+
+		self.HIGH = self.THICKNESS + RDS3225.HIGH + self.THICKNESS + border * 2
+
+		self.MOTOR_FRONT_SUPPORT = MotorFrontSupport(thickness = self.THICKNESS, y = self.CONNECTION_DISTANCE + self.THICKNESS)
+		self.MOTOR_BACK_SUPPORT = MotorBackSupport(thickness = self.THICKNESS, y = self.CONNECTION_DISTANCE + self.THICKNESS)
+
+	def draw(self):
+
+		self.MOTOR_BACK_SUPPORT.draw()
+		mirrorZ()
+		move(z=self.HIGH)
+		fuseBox(self.MOTOR_BACK_SUPPORT.WIDTH, self.MOTOR_FRONT_SUPPORT.HEIGHT + self.THICKNESS + self.CONNECTION_DISTANCE, self.THICKNESS,
+			 x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2)
+		self.MOTOR_FRONT_SUPPORT.draw()
+		rotate(0,0,0,X, 90)
+
+		fuseBox(self.MOTOR_BACK_SUPPORT.WIDTH + strong_base * 2, self.HIGH, self.THICKNESS, x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2 - strong_base, y=-self.HIGH)
+
+		cutCylinder(RDS3225.SHAFT_CUT_R, self.THICKNESS, y=-self.HIGH,z= self.CONNECTION_DISTANCE + self.THICKNESS + RDS3225.SHAFT_Y, dir=Y)
+
+		cutCylinder(m4_hole_radius, self.THICKNESS, y = -self.HIGH / 2 - MakeBlocks.HOLES_INTERVAL)
+		cutCylinder(m4_hole_radius, self.THICKNESS, y = -self.HIGH / 2 + MakeBlocks.HOLES_INTERVAL)
+
+		fuseBox(self.MOTOR_BACK_SUPPORT.WIDTH, self.THICKNESS, self.CONNECTION_DISTANCE,
+				x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2, y = -self.HIGH, z = self.THICKNESS)
+		fuseBox(self.THICKNESS, self.HIGH, self.CONNECTION_DISTANCE + self.MOTOR_FRONT_SUPPORT.HEIGHT, x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2 - strong_base, y=-self.HIGH, z = self.THICKNESS)
+		fuseBox(self.THICKNESS, self.HIGH, self.CONNECTION_DISTANCE + self.MOTOR_FRONT_SUPPORT.HEIGHT, x = self.MOTOR_BACK_SUPPORT.WIDTH / 2 - self.THICKNESS + strong_base, y=-self.HIGH, z = self.THICKNESS)
+		fuseBox(self.THICKNESS, self.THICKNESS * 3, self.CONNECTION_DISTANCE + self.MOTOR_BACK_SUPPORT.HEIGHT, x = -self.MOTOR_BACK_SUPPORT.WIDTH / 2 - strong_base, y=-self.HIGH, z = self.THICKNESS)
+		fuseBox(self.THICKNESS, self.THICKNESS * 3, self.CONNECTION_DISTANCE + self.MOTOR_BACK_SUPPORT.HEIGHT, x = self.MOTOR_BACK_SUPPORT.WIDTH / 2 - self.THICKNESS + strong_base, y=-self.HIGH, z = self.THICKNESS)
+	
+		fuseBox(self.THICKNESS * 2 + self.CAMERA_SUPPORT.HOLE_R * 2, self.TO_CAMERA, self.THICKNESS, x = - self.THICKNESS - self.CAMERA_SUPPORT.HOLE_R, y = -self.HIGH - self.TO_CAMERA)
+		fuseBox(min_base, self.TO_CAMERA, self.THICKNESS + min_base, x = - self.THICKNESS - self.CAMERA_SUPPORT.HOLE_R, y = -self.HIGH - self.TO_CAMERA)
+		fuseBox(min_base, self.TO_CAMERA, self.THICKNESS + min_base, x = self.THICKNESS + self.CAMERA_SUPPORT.HOLE_R - min_base, y = -self.HIGH - self.TO_CAMERA)
+		cutCylinder(self.CAMERA_SUPPORT.HOLE_R, self.THICKNESS, y = self.CAMERA_SUPPORT.HOLE1 - self.HIGH - self.TO_CAMERA)
+		cutCylinder(self.CAMERA_SUPPORT.HOLE_R, self.THICKNESS, y = self.CAMERA_SUPPORT.HOLE2 - self.HIGH - self.TO_CAMERA)
+
+
+#SensorSupport(100).show()
+#MotorShaftConnector(thickness = strong_base, stub="on", orient="down").show()
+rh = RightHand()
+#rh.show()
+lh = LeftHand(rh, drawRight = False)
+#lh = LeftHand(rh, drawRight = True)
+#lh.show()
+#VerticalMotorSupport().show()
+#GripperMotorSupport(lh).show()
+sm = ShoulderMain(180)
+#sm.show()
+#HandMotorTopSupport(sm, drawShoulder = False).show()
+#ShoulderBackSupport(sm, drawShoulder = False).show()
+cs = CameraSupport()
+#cs.show()
+ShoulderMotorSupport(cs).show()
