@@ -81,12 +81,13 @@ void surfaceTest1() {
 }
 
 void smallObjTest() {
-	TRealSense src;
-	//TDepthFile src("1609729260.csv");
+	//TRealSense src;
+	TDepthFile src("sso2.csv");
 
 	TCamera camera;
 
 	src.newFrame();
+	//src.save("sso4.csv");
 
 	camera.drawDepth(&src);
 	camera.process5(&src);
